@@ -72,7 +72,8 @@ public final class BytecodeRules {
   }
 
   private BytecodeReport evaluate(BytecodePolicy policy, JavaClasses classes) {
-    var rules = new BytecodeRuleCatalog(policy).rules();
+    var authorities = PersistenceAuthority.derive(policy, classes);
+    var rules = new BytecodeRuleCatalog(policy, authorities).rules();
     var violations = new TreeSet<String>();
     var errors = new TreeSet<String>();
     for (var entry : rules.entrySet()) {
@@ -101,6 +102,10 @@ public final class BytecodeRules {
       errors.add("CONSTRUCTION_POLICY | " + failure);
     }
     return new BytecodeReport(
-        classes.size(), List.copyOf(rules.keySet()), List.copyOf(violations), List.copyOf(errors));
+        classes.size(),
+        List.copyOf(rules.keySet()),
+        authorities,
+        List.copyOf(violations),
+        List.copyOf(errors));
   }
 }

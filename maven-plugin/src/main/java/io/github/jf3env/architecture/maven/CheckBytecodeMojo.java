@@ -4,13 +4,11 @@ import io.github.jf3env.architecture.bytecode.BytecodePolicy;
 import io.github.jf3env.architecture.bytecode.BytecodeReport;
 import io.github.jf3env.architecture.bytecode.BytecodeRequest;
 import io.github.jf3env.architecture.bytecode.BytecodeRules;
-import io.github.jf3env.architecture.bytecode.DomainPolicy;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Set;
+import java.util.ArrayList;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -32,24 +30,6 @@ public final class CheckBytecodeMojo extends AbstractMojo {
   @Parameter(required = true)
   private String basePackage;
 
-  @Parameter(required = true)
-  private String authorityDomain;
-
-  @Parameter(required = true)
-  private String forbiddenDomain;
-
-  @Parameter(required = true)
-  private String authorityAggregate;
-
-  @Parameter(required = true)
-  private String authorityRepository;
-
-  @Parameter(required = true)
-  private List<String> authorityServices;
-
-  @Parameter(required = true)
-  private String forbiddenRepository;
-
   @Parameter(
       defaultValue = "${project.build.directory}/architecture/bytecode-report.txt",
       readonly = true)
@@ -65,15 +45,7 @@ public final class CheckBytecodeMojo extends AbstractMojo {
         throw new IllegalArgumentException(
             "Apply check-bytecode to a complete application module, not a POM aggregator");
       }
-      var domain =
-          new DomainPolicy(
-              authorityDomain,
-              forbiddenDomain,
-              authorityAggregate,
-              authorityRepository,
-              Set.copyOf(authorityServices),
-              forbiddenRepository);
-      var policy = new BytecodePolicy(basePackage, domain);
+      var policy = new BytecodePolicy(basePackage);
       var request =
           new BytecodeRequest(
               policy,
@@ -107,32 +79,19 @@ public final class CheckBytecodeMojo extends AbstractMojo {
   }
 
   private String render(BytecodeReport report) {
-    return (report.passed()
-            ? "PASSED"
-            : report.errors().isEmpty() ? "VIOLATIONS" : "ANALYSIS_ERROR")
-        + "\nbasePackage="
-        + basePackage
-        + "\nauthorityDomain="
-        + authorityDomain
-        + "\nauthorityAggregate="
-        + authorityAggregate
-        + "\nauthorityRepository="
-        + authorityRepository
-        + "\nauthorityServices="
-        + new java.util.TreeSet<>(authorityServices)
-        + "\nforbiddenDomain="
-        + forbiddenDomain
-        + "\nforbiddenRepository="
-        + forbiddenRepository
-        + "\nclassFiles="
-        + report.classFiles()
-        + "\nrules="
-        + report.rules()
-        + "\nconstructionPolicy=EXECUTED\n"
-        + String.join("\n", report.violations())
-        + "\n"
-        + String.join("\n", report.errors())
-        + "\n";
+    var lines = new ArrayList<String>();
+    lines.add(
+        report.passed() ? "PASSED" : report.errors().isEmpty() ? "VIOLATIONS" : "ANALYSIS_ERROR");
+    lines.add("basePackage=" + basePackage);
+    for (var authority : report.authorities()) {
+      lines.add("authority[" + authority.domain() + "]=" + authority.describe());
+    }
+    lines.add("classFiles=" + report.classFiles());
+    lines.add("rules=" + report.rules());
+    lines.add("constructionPolicy=EXECUTED");
+    lines.addAll(report.violations());
+    lines.addAll(report.errors());
+    return String.join("\n", lines) + "\n";
   }
 
   private void writeReport(String content) throws IOException {

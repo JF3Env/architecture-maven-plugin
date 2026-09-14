@@ -17,17 +17,24 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.TreeSet;
 
-/** The original 43-rule catalog, constructed anew for each consumer and evaluation. */
+/** The 43-rule catalog, constructed anew for each consumer and derived authority inventory. */
 public final class BytecodeRuleCatalog {
   private static final String ENTITY = "jakarta.persistence.Entity";
   private static final String MAPPER = "org.mapstruct.Mapper";
   private final BytecodePolicy policy;
+  private final List<DomainAuthority> authorities;
   private final DomainPackageConvention convention;
 
-  public BytecodeRuleCatalog(BytecodePolicy policy) {
+  public BytecodeRuleCatalog(BytecodePolicy policy, List<DomainAuthority> authorities) {
     this.policy = policy;
+    this.authorities = List.copyOf(authorities);
     convention = new DomainPackageConvention(policy.basePackage());
   }
 
@@ -120,30 +127,14 @@ public final class BytecodeRuleCatalog {
             .should()
             .beInterfaces());
     rules.add(
-        "ASSET_DOMAIN_PACKAGES_ARE_WORKSPACE_OWNED",
-        noClasses()
-            .should()
-            .resideInAPackage("..domain." + policy.domain().forbiddenDomain() + ".."));
+        "DOMAINS_HAVE_A_SINGLE_PERSISTENCE_AUTHORITY",
+        classes().should(singlePersistenceAuthority()));
     rules.add(
-        "ASSET_CHANGING_SERVICES_USE_WORKSPACE_AUTHORITY",
-        classes()
-            .that(authorityService())
-            .should()
-            .dependOnClassesThat()
-            .haveFullyQualifiedName(policy.domain().aggregate())
-            .andShould()
-            .dependOnClassesThat()
-            .haveFullyQualifiedName(policy.domain().repository()));
+        "SERVICES_USE_THEIR_DOMAIN_REPOSITORY",
+        classes().that(domainService()).should(useOwnDomainRepository()));
     rules.add(
-        "WORKSPACE_ASSET_SERVICES_HAVE_NO_ASSET_PERSISTENCE_REPOSITORY",
-        noClasses()
-            .that()
-            .resideInAPackage(base + ".domain." + policy.domain().authorityDomain() + ".services.*")
-            .and()
-            .haveSimpleNameEndingWith("Service")
-            .should()
-            .dependOnClassesThat()
-            .haveSimpleName(policy.domain().forbiddenRepository()));
+        "SERVICES_USE_THEIR_DOMAIN_AGGREGATE",
+        classes().that(domainService()).should(useOwnDomainAggregate()));
     rules.add("REST_DOES_NOT_BYPASS_DOMAIN_SERVICES", restDoesNotBypassDomainServices());
     rules.add(
         "REST_DOES_NOT_ACCESS_ROOT_REPOSITORIES",
@@ -384,13 +375,158 @@ public final class BytecodeRuleCatalog {
     return rules.require(new BytecodeContracts().requiredRules());
   }
 
-  private DescribedPredicate<JavaClass> authorityService() {
-    return new DescribedPredicate<>("an explicitly configured authority service") {
+  private DescribedPredicate<JavaClass> domainService() {
+    var prefix = policy.basePackage() + ".domain.";
+    return new DescribedPredicate<>("a service in " + prefix + "..") {
       @Override
       public boolean test(JavaClass type) {
-        return policy.domain().services().contains(type.getSimpleName());
+        return type.getPackageName().startsWith(prefix) && type.getSimpleName().endsWith("Service");
       }
     };
+  }
+
+  private ArchCondition<JavaClass> singlePersistenceAuthority() {
+    var violations = new HashMap<String, List<String>>();
+    var prefix = policy.basePackage() + ".domain.";
+    for (var authority : authorities) {
+      var domainRoot = prefix + authority.domain();
+      if (authority.aggregateRoots().size() > 1) {
+        for (var root : authority.aggregateRoots()) {
+          violations
+              .computeIfAbsent(root, ignored -> new ArrayList<String>())
+              .add(
+                  "domain "
+                      + authority.domain()
+                      + " declares "
+                      + authority.aggregateRoots().size()
+                      + " aggregate roots; exactly one aggregate root is required in "
+                      + domainRoot
+                      + ".aggregate: "
+                      + authority.aggregateRoots());
+        }
+      }
+      if (authority.repositories().size() > 1) {
+        for (var repository : authority.repositories()) {
+          violations
+              .computeIfAbsent(repository, ignored -> new ArrayList<String>())
+              .add(
+                  "domain "
+                      + authority.domain()
+                      + " declares "
+                      + authority.repositories().size()
+                      + " repository interfaces; exactly one root"
+                      + " repository is required in "
+                      + domainRoot
+                      + ": "
+                      + authority.repositories());
+        }
+      }
+      if (authority.repositories().size() == 1 && authority.rootRepositories().isEmpty()) {
+        violations
+            .computeIfAbsent(authority.repositories().get(0), ignored -> new ArrayList<String>())
+            .add("root repository must reside in " + domainRoot);
+      }
+      if (authority.rootRepositories().size() == 1 && authority.aggregateRoots().isEmpty()) {
+        violations
+            .computeIfAbsent(
+                authority.rootRepositories().get(0), ignored -> new ArrayList<String>())
+            .add(
+                "root repository requires the domain aggregate root in "
+                    + domainRoot
+                    + ".aggregate");
+      }
+    }
+    return new ArchCondition<>("declare a single local persistence authority") {
+      @Override
+      public void check(JavaClass type, ConditionEvents events) {
+        for (var message : violations.getOrDefault(type.getName(), List.of())) {
+          events.add(SimpleConditionEvent.violated(type, type.getName() + ": " + message));
+        }
+      }
+    };
+  }
+
+  private ArchCondition<JavaClass> useOwnDomainRepository() {
+    return new ArchCondition<>("use only their own domain's root repository") {
+      @Override
+      public void check(JavaClass service, ConditionEvents events) {
+        var expected = authorityOf(service).map(DomainAuthority::rootRepository).orElse(null);
+        for (var repository : repositoryDependencies(service)) {
+          var satisfied = expected != null && repository.equals(expected);
+          events.add(
+              new SimpleConditionEvent(
+                  service,
+                  satisfied,
+                  service.getName()
+                      + " uses repository "
+                      + repository
+                      + (expected == null
+                          ? "; its domain declares no root repository in "
+                              + policy.basePackage()
+                              + ".domain."
+                              + domainOf(service.getPackageName())
+                          : "; it must use its own domain's root repository " + expected)));
+        }
+      }
+    };
+  }
+
+  private ArchCondition<JavaClass> useOwnDomainAggregate() {
+    return new ArchCondition<>("use their own domain's aggregate root with its root repository") {
+      @Override
+      public void check(JavaClass service, ConditionEvents events) {
+        var authority = authorityOf(service).orElse(null);
+        if (authority == null) return;
+        var repository = authority.rootRepository();
+        var aggregate = authority.aggregate();
+        if (repository == null || aggregate == null) return;
+        if (!repositoryDependencies(service).contains(repository)) return;
+        var satisfied = directDependencyNames(service).contains(aggregate);
+        events.add(
+            new SimpleConditionEvent(
+                service,
+                satisfied,
+                service.getName()
+                    + " uses the root repository "
+                    + repository
+                    + " without the domain aggregate root "
+                    + aggregate));
+      }
+    };
+  }
+
+  private Optional<DomainAuthority> authorityOf(JavaClass type) {
+    var domain = domainOf(type.getPackageName());
+    return authorities.stream().filter(authority -> authority.domain().equals(domain)).findFirst();
+  }
+
+  private String domainOf(String packageName) {
+    var prefix = policy.basePackage() + ".domain.";
+    return PersistenceAuthority.domainOf(packageName, prefix);
+  }
+
+  private List<String> repositoryDependencies(JavaClass service) {
+    var names = new TreeSet<String>();
+    for (var name : directDependencyNames(service)) {
+      if (name.substring(name.lastIndexOf('.') + 1).endsWith("Repository")) {
+        names.add(name);
+      }
+    }
+    return List.copyOf(names);
+  }
+
+  private List<String> directDependencyNames(JavaClass type) {
+    var names = new TreeSet<String>();
+    for (var dependency : type.getDirectDependenciesFromSelf()) {
+      var target = dependency.getTargetClass();
+      if (target.isArray()) {
+        target = target.getBaseComponentType();
+      }
+      if (!target.isPrimitive()) {
+        names.add(target.getName());
+      }
+    }
+    return List.copyOf(names);
   }
 
   private ArchCondition<JavaClass> serviceLocation() {

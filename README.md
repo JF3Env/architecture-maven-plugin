@@ -24,7 +24,7 @@ Use JDK 24 and the Maven 3.9.16 Wrapper:
 <plugin>
     <groupId>io.github.jf3env</groupId>
     <artifactId>architecture-maven-plugin</artifactId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.3.0-SNAPSHOT</version>
     <configuration>
         <basePackage>com.company.product</basePackage>
     </configuration>
@@ -38,14 +38,6 @@ Use JDK 24 and the Maven 3.9.16 Wrapper:
             <id>architecture-bytecode-contracts</id>
             <phase>process-test-classes</phase>
             <goals><goal>check-bytecode</goal></goals>
-            <configuration>
-                <authorityDomain>orders</authorityDomain>
-                <forbiddenDomain>assets</forbiddenDomain>
-                <authorityAggregate>com.company.product.domain.orders.aggregate.Order</authorityAggregate>
-                <authorityRepository>com.company.product.domain.orders.OrderRepository</authorityRepository>
-                <authorityServices><service>OrderService</service></authorityServices>
-                <forbiddenRepository>AssetRepository</forbiddenRepository>
-            </configuration>
         </execution>
     </executions>
 </plugin>
@@ -69,13 +61,19 @@ grammar. Test sources and dependency JARs provide no additional application inpu
 `check-bytecode` inventories every application class, including generated implementations; dependencies
 are only resolution inputs. It requires complete imports and resolved direct dependencies, and rejects
 empty, corrupt and duplicate inventories. It executes every registered rule, enforces required identities
-and runs the construction/producer policy. Reports include exact configured authority identities and
-rule descriptions. Resolution cannot be disabled or replaced through ArchUnit configuration, and the
+and runs the construction/producer policy. Reports include the derived per-domain authority and rule
+descriptions. Resolution cannot be disabled or replaced through ArchUnit configuration, and the
 analyzer preserves its caller's context classloader and configuration.
 
-The bytecode policy targets one complete domain/persistence/infra application per module. All three
-layers and the types selected by mandatory rules must be present; aggregator POMs and empty selections
-are not silently accepted. Each domain needs its `<Domain>Producer` in `infra.domains.producers`.
+Persistence authority is derived from the inventory, not configured: every `<basePackage>.domain.<X>`
+may declare at most one aggregate root in `<basePackage>.domain.<X>.aggregate` and at most one
+repository interface in the whole domain, which must reside at `<basePackage>.domain.<X>` when
+present and then requires the aggregate root. Services in `domain.<X>.services..` may depend only on
+their own domain's root repository, and using that repository requires using the aggregate root.
+Domains without a repository remain computational. The bytecode policy still targets one complete
+domain/persistence/infra application per module: all three layers and the types selected by mandatory
+rules must be present, aggregator POMs and empty selections are not silently accepted, and each domain
+needs its `<Domain>Producer` in `infra.domains.producers`.
 
 The reference's six typed source checkers and IOSP remain in the template pending their separate
 extraction. They establish additional contracts, including handwritten-vs-generated provenance and

@@ -7,6 +7,7 @@ import static io.github.jf3env.architecture.bytecode.CompiledArchitectureFixture
 import com.tngtech.archunit.lang.ArchRule;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -16,7 +17,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 /** Each fixture evaluates its named contract, not the conjunction of every production rule. */
 class GeneralArchitectureRulesTest {
   private static final Map<String, ArchRule> RULES =
-      new BytecodeRuleCatalog(TestPolicies.reference()).rules();
+      new BytecodeRuleCatalog(TestPolicies.reference(), List.of()).rules();
   @TempDir Path temporary;
 
   @ParameterizedTest

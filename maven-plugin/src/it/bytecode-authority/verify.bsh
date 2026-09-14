@@ -1,0 +1,5 @@
+new io.github.jf3env.architecture.maven.BytecodeFixtureProject().verify(basedir.toPath(), "VIOLATIONS",
+    java.util.List.of("DOMAINS_HAVE_A_SINGLE_PERSISTENCE_AUTHORITY",
+        "root repository requires the domain aggregate root in consumer.example.domain.inventory.aggregate",
+        "InventoryRepository"));
+return true;
