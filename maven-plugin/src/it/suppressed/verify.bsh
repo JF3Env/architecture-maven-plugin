@@ -1,0 +1,6 @@
+import java.nio.file.Files;
+String report = Files.readString(new File(basedir, "target/architecture/source-report.txt").toPath());
+if (!report.startsWith("VIOLATIONS\n") || !report.contains("SUPPRESSED DomainMethodsMustNotReturnNull | ") || !report.contains("Suppressed.java:6")) {
+    throw new IllegalStateException("Suppression must not hide the contract: " + report);
+}
+return true;

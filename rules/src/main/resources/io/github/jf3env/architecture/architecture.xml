@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="Handwritten backend architecture"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+    <description>Production source rules; tests and explicit generated-source roots are excluded.</description>
+    <rule name="NoStaticMethods"
+          language="java"
+          message="Use instance methods, except for static factories that directly create their own Exception subtype."
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <description>Static methods are restricted to direct self-factories on Exception subtypes. The typed source architecture gate additionally verifies parameter forwarding and forbids extra logic.</description>
+        <priority>1</priority>
+        <properties>
+            <property name="xpath">
+                <value><![CDATA[
+                    //MethodDeclaration[@Static = true()][not(
+                        ancestor::ClassDeclaration[1][pmd-java:typeIs('java.lang.Exception')]
+                        and count(Block/*) = 1
+                        and Block/ReturnStatement/ConstructorCall
+                        and not(.//MethodCall)
+                    )]
+                ]]></value>
+            </property>
+        </properties>
+    </rule>
+    <rule name="RequireTypeImports"
+          language="java"
+          message="Import the class and use its simple name instead of a fully qualified type name."
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
+        <description>Require imports for qualified type references, including annotations and static-call qualifiers. A conflicting explicit import or a same-named declared type permits qualification.</description>
+        <priority>1</priority>
+        <properties>
+            <property name="xpath">
+                <value><![CDATA[
+                    //ClassType[@FullyQualified = true()][
+                        let $name := @SimpleName,
+                            $full := concat(@PackageQualifier, '.', @SimpleName),
+                            $scopes := ancestor::*,
+                            $site := .
+                        return not(
+                            root(.)//ImportDeclaration[@ImportOnDemand = false()
+                                and @ImportedSimpleName = $name and @ImportedName != $full]
+                            or root(.)//*[self::ClassDeclaration or self::RecordDeclaration
+                                or self::EnumDeclaration or self::AnnotationTypeDeclaration]
+                                [@SimpleName = $name and not(@CanonicalName = $full)]
+                                [parent::CompilationUnit or exists(. intersect $scopes)
+                                    or exists(parent::ClassBody/parent::* intersect $scopes)
+                                    or (exists((parent::Block | parent::LocalClassStatement/parent::Block)
+                                        intersect $scopes) and . << $site)]
+                        )
+                    ]
+                ]]></value>
+            </property>
+        </properties>
+    </rule>
+</ruleset>

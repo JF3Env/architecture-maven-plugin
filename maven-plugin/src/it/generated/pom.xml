@@ -1,0 +1,24 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>consumer.example</groupId><artifactId>generated-consumer</artifactId><version>1</version>
+    <properties><maven.compiler.release>24</maven.compiler.release><project.build.sourceEncoding>UTF-8</project.build.sourceEncoding></properties>
+    <dependencies>
+        <dependency><groupId>org.mapstruct</groupId><artifactId>mapstruct</artifactId><version>1.6.3</version></dependency>
+        <dependency><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId><version>1.18.46</version><scope>provided</scope></dependency>
+    </dependencies>
+    <build><plugins>
+        <plugin>
+            <artifactId>maven-compiler-plugin</artifactId><version>3.15.0</version>
+            <configuration><annotationProcessorPaths>
+                <path><groupId>org.mapstruct</groupId><artifactId>mapstruct-processor</artifactId><version>1.6.3</version></path>
+                <path><groupId>org.projectlombok</groupId><artifactId>lombok</artifactId><version>1.18.46</version></path>
+                <path><groupId>org.projectlombok</groupId><artifactId>lombok-mapstruct-binding</artifactId><version>0.2.0</version></path>
+            </annotationProcessorPaths></configuration>
+        </plugin>
+        <plugin>
+            <groupId>io.github.jf3env</groupId><artifactId>architecture-maven-plugin</artifactId><version>@project.version@</version>
+            <configuration><basePackage>consumer.example</basePackage></configuration>
+            <executions><execution><goals><goal>check</goal></goals></execution></executions>
+        </plugin>
+    </plugins></build>
+</project>

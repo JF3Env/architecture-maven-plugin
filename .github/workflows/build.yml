@@ -1,0 +1,36 @@
+name: Build and publish
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '24'
+          cache: maven
+          server-id: github
+      - name: Verify and publish snapshots
+        run: ./mvnw --batch-mode clean "$MAVEN_GOAL"
+        env:
+          MAVEN_GOAL: ${{ github.event_name == 'push' && 'deploy' || 'verify' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-evidence
+          path: |
+            **/target/surefire-reports/
+            **/target/invoker-reports/
+            maven-plugin/target/it/**/build.log
+            maven-plugin/target/it/**/target/architecture/

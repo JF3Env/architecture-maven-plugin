@@ -1,0 +1,6 @@
+import java.nio.file.Files;
+String report = Files.readString(new File(basedir, "target/architecture/source-report.txt").toPath());
+if (!report.contains("SOURCE_INVENTORY | ") || !report.contains("unexpected ownership package consumer.example.domain.orders")) {
+    throw new IllegalStateException("Wrong scope must not pass an empty analysis: " + report);
+}
+return true;

@@ -1,0 +1,9 @@
+import java.nio.file.Files;
+String report = Files.readString(new File(basedir, "target/architecture/source-report.txt").toPath());
+if (!report.startsWith("VIOLATIONS\n") || !report.contains("AvoidOptionalGet | ") || !report.contains("Invalid.java:7")) {
+    throw new IllegalStateException("Expected the intended Optional diagnostic: " + report);
+}
+if (report.contains("SOURCE_INVENTORY") || report.contains("ANALYSIS_ERROR")) throw new IllegalStateException(report);
+String log = Files.readString(new File(basedir, "build.log").toPath());
+if (log.contains("--- surefire:") || log.contains("COMPILATION ERROR")) throw new IllegalStateException("Unrelated failure: " + log);
+return true;

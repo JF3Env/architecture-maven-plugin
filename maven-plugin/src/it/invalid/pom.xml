@@ -1,0 +1,13 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>consumer.example</groupId><artifactId>invalid-consumer</artifactId><version>1</version>
+    <properties><maven.compiler.release>24</maven.compiler.release><project.build.sourceEncoding>UTF-8</project.build.sourceEncoding></properties>
+    <build><plugins>
+        <plugin><artifactId>maven-compiler-plugin</artifactId><version>3.15.0</version></plugin>
+        <plugin>
+            <groupId>io.github.jf3env</groupId><artifactId>architecture-maven-plugin</artifactId><version>@project.version@</version>
+            <configuration><basePackage>consumer.example</basePackage></configuration>
+            <executions><execution><goals><goal>check</goal></goals></execution></executions>
+        </plugin>
+    </plugins></build>
+</project>

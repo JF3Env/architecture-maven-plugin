@@ -1,0 +1,6 @@
+import java.nio.file.Files;
+String report = Files.readString(new File(basedir, "target/architecture/source-report.txt").toPath());
+if (!report.startsWith("ANALYSIS_ERROR\n") || !report.contains("Empty handwritten source inventory")) {
+    throw new IllegalStateException("Empty input must not be approved: " + report);
+}
+return true;
