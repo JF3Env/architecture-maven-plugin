@@ -1,0 +1,21 @@
+import java.nio.file.Files;
+String report = Files.readString(new File(basedir, "target/architecture/iosp-report.txt").toPath());
+if (!report.startsWith("PASSED\n") || !report.contains("basePackage=consumer.example") || !report.contains("rules=[IospMixedAbstraction]")) {
+    throw new IllegalStateException("Expected a successful IOSP analysis: " + report);
+}
+if (!report.contains("sourceFiles=14")) {
+    throw new IllegalStateException("The whole handwritten backend inventory must be inspected: " + report);
+}
+String source = Files.readString(new File(basedir, "target/architecture/source-report.txt").toPath());
+if (!source.startsWith("PASSED\n")) throw new IllegalStateException("The source gate must pass too: " + source);
+String log = Files.readString(new File(basedir, "build.log").toPath());
+if (!log.contains("all handwritten backend scopes satisfy the structural segregation policy")) {
+    throw new IllegalStateException("Missing the IOSP approval: " + log);
+}
+if (log.contains("--- surefire:") || log.contains("COMPILATION ERROR")) {
+    throw new IllegalStateException("The gate must execute before Surefire: " + log);
+}
+if (!new File(basedir, "target/generated-sources/annotations/consumer/example/infra/orders/rest/mappers/OrderRestMapperImpl.java").isFile()) {
+    throw new IllegalStateException("MapStruct provenance must be exercised by the inventory proof");
+}
+return true;

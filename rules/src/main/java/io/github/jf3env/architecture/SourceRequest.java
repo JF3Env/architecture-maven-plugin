@@ -4,9 +4,18 @@ import java.nio.file.Path;
 import java.util.List;
 import javax.lang.model.SourceVersion;
 
-/** Immutable inputs for one consumer; dependencies only provide type-resolution evidence. */
+/**
+ * Immutable inputs for one consumer; dependencies only provide type-resolution evidence.
+ *
+ * <p>{@code persistenceBoundary} names the one class whose {@code execute} method wraps all
+ * JPA/EntityManager work; it is a single application-wide contract, not a per-domain authority, so
+ * it is supplied explicitly rather than derived from the compiled inventory. IOSP structural
+ * analysis inspects only the first entry of {@code sourceRoots}, the consumer's primary handwritten
+ * source root.
+ */
 public record SourceRequest(
     String basePackage,
+    String persistenceBoundary,
     List<Path> sourceRoots,
     List<Path> generatedRoots,
     Path classesDirectory,
@@ -14,6 +23,10 @@ public record SourceRequest(
   public SourceRequest {
     if (basePackage == null || !SourceVersion.isName(basePackage, SourceVersion.RELEASE_24)) {
       throw new IllegalArgumentException("A valid Java basePackage is required");
+    }
+    if (persistenceBoundary == null
+        || !SourceVersion.isName(persistenceBoundary, SourceVersion.RELEASE_24)) {
+      throw new IllegalArgumentException("A valid Java persistenceBoundary class name is required");
     }
     sourceRoots =
         sourceRoots.stream().map(path -> path.toAbsolutePath().normalize()).distinct().toList();

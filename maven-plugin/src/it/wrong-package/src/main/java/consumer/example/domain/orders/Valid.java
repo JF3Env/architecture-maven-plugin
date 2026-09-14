@@ -1,7 +1,13 @@
 package consumer.example.domain.orders;
 
 public final class Valid {
+  private final int offset;
+
+  public Valid(int offset) {
+    this.offset = Math.abs(offset);
+  }
+
   public int value() {
-    return 1;
+    return this.offset + 1;
   }
 }
