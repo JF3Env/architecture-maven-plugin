@@ -1,0 +1,3 @@
+new io.github.jf3env.architecture.maven.BytecodeFixtureProject().verify(basedir.toPath(), "ANALYSIS_ERROR",
+    java.util.List.of("Cannot inspect class file", "Broken.class"));
+return true;

@@ -1,0 +1,3 @@
+new io.github.jf3env.architecture.maven.BytecodeFixtureProject().verify(basedir.toPath(), "VIOLATIONS",
+    java.util.List.of("domain products are created in the domain", "OrderResult", "OrderRestMapperImpl"));
+return true;
