@@ -35,6 +35,21 @@ public final class BytecodeFixtureProject {
               "  OrderDto dto(OrderResult result);",
               "  OrderDto dto(OrderResult result);\n  OrderResult illegal(OrderDto dto);");
       case "factory" -> relocateFactory(sources);
+      case "authority" -> {
+        var domain = sources.resolve("domain/inventory");
+        Files.createDirectories(domain);
+        Files.writeString(
+            domain.resolve("package-info.java"),
+            "@NullMarked\n"
+                + "package consumer.example.domain.inventory;\n\n"
+                + "import org.jspecify.annotations.NullMarked;\n");
+        Files.writeString(
+            domain.resolve("InventoryRepository.java"),
+            "package consumer.example.domain.inventory;\n\n"
+                + "public interface InventoryRepository {\n"
+                + "  void save();\n"
+                + "}\n");
+      }
       case "corrupt" -> {
         replace(
             target.resolve("pom.xml"),

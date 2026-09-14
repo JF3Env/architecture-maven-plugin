@@ -6,11 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.lang.ArchRule;
 import jakarta.transaction.Transactional;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class TransactionOwnershipTest {
   private static final ArchRule TRANSACTIONS =
-      new BytecodeRuleCatalog(TestPolicies.reference())
+      new BytecodeRuleCatalog(TestPolicies.reference(), List.of())
           .rules()
           .get("TRANSACTION_ANNOTATIONS_BELONG_TO_PERSISTENCE");
 

@@ -38,6 +38,18 @@ It then removed the legacy implementation and retained its six typed source chec
 `SourceArchitectureGate`. Its existing Maven lifecycle negatives now assert the exact failing goal.
 Slices 3–4 remain pending.
 
+ARCH-4 replaces the six configured authority values with authorities derived from the compiled
+inventory. Every `domain.<X>` may declare at most one aggregate root in `domain.<X>.aggregate` and
+at most one repository interface, which must reside at `domain.<X>` when present and then requires
+the aggregate root; services in `domain.<X>.services..` may depend only on their own domain's root
+repository, and using it requires using the aggregate root. The identities
+`DOMAINS_HAVE_A_SINGLE_PERSISTENCE_AUTHORITY`, `SERVICES_USE_THEIR_DOMAIN_REPOSITORY` and
+`SERVICES_USE_THEIR_DOMAIN_AGGREGATE` replace the three configured authority rules, the catalog
+keeps its 43 entries, and the report now prints one `authority[<X>]=aggregate=... repository=...`
+line per domain. This is a breaking change for bytecode execution configuration: `authorityDomain`,
+`forbiddenDomain`, `authorityAggregate`, `authorityRepository`, `authorityServices` and
+`forbiddenRepository` are no longer accepted.
+
 | Slice | Contracts | Owner after migration | Required evidence |
 | --- | --- | --- | --- |
 | 1 — Source rules | ARCH-09 `NoStaticMethods`, `RequireTypeImports`, `AvoidOptionalGet`, `DomainMethodsMustNotReturnNull` | Packaged rulesets and Maven `check` | Original controls, another base package, real Maven, restricted tests, suppression/error/empty-input rejection |

@@ -1,6 +1,6 @@
 import java.nio.file.Files;
 String report = Files.readString(new File(basedir, "target/architecture/bytecode-report.txt").toPath());
-if (!report.startsWith("PASSED\n") || !report.contains("authorityDomain=orders") || !report.contains("constructionPolicy=EXECUTED")) {
+if (!report.startsWith("PASSED\n") || !report.contains("authority[orders]=aggregate=consumer.example.domain.orders.aggregate.Order repository=consumer.example.domain.orders.OrderRepository") || !report.contains("constructionPolicy=EXECUTED")) {
     throw new IllegalStateException(report);
 }
 String log = Files.readString(new File(basedir, "build.log").toPath());

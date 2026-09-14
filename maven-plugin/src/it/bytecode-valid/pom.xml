@@ -20,13 +20,7 @@
             <configuration><basePackage>consumer.example</basePackage></configuration>
             <executions>
                 <execution><id>source</id><goals><goal>check</goal></goals></execution>
-                <execution><id>bytecode</id><goals><goal>check-bytecode</goal></goals><configuration>
-                    <authorityDomain>orders</authorityDomain><forbiddenDomain>assets</forbiddenDomain>
-                    <authorityAggregate>consumer.example.domain.orders.aggregate.Order</authorityAggregate>
-                    <authorityRepository>consumer.example.domain.orders.OrderRepository</authorityRepository>
-                    <authorityServices><service>OrderService</service></authorityServices>
-                    <forbiddenRepository>AssetRepository</forbiddenRepository>
-                </configuration></execution>
+                <execution><id>bytecode</id><goals><goal>check-bytecode</goal></goals></execution>
             </executions>
         </plugin>
     </plugins></build>

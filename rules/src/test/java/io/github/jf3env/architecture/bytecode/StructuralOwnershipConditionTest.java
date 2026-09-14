@@ -7,6 +7,7 @@ import static io.github.jf3env.architecture.bytecode.CompiledArchitectureFixture
 import com.tngtech.archunit.lang.ArchRule;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -15,7 +16,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class StructuralOwnershipConditionTest {
   private static final ArchRule OWNERSHIP =
-      new BytecodeRuleCatalog(TestPolicies.reference())
+      new BytecodeRuleCatalog(TestPolicies.reference(), List.of())
           .rules()
           .get("DOMAIN_COMPONENTS_FOLLOW_STRUCTURAL_OWNERS");
   private static final String DOMAIN = "com.ai.label.domain.probe";
