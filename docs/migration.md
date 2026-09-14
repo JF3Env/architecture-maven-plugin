@@ -17,7 +17,26 @@ Slice 1 is implemented and consumed by the reference project's migration branch.
 38 library tests and six real Maven consumers passed. After replacing the local XML copies,
 the reference passed both complete commands with 835 tests and 27/27 domain mutations killed.
 The new lifecycle negative compiled successfully and failed specifically at `architecture:check`
-with `AvoidOptionalGet` on `Workspace.java`, before Surefire. Slices 2–4 remain pending.
+with `AvoidOptionalGet` on `Workspace.java`, before Surefire.
+
+Slice 2 adds `check-bytecode`, with the original 43 required identities and the allocation/factory/
+producer policy. Its typed catalog is independent of JUnit. Required identities, duplicate/null
+registration rejection and automatic execution of additions replace reflection over `@ArchTest`
+fields. The per-rule empty-selection guard is explicit. Authority identities are constructor inputs,
+not constants or global system properties. The classloader is scoped to one request and always restored;
+weakened/custom ArchUnit resolution is rejected without mutating the caller's configuration.
+
+114 existing compiled counterexamples moved into the library. Five inventory tests preserve the
+registration guarantees and ten additional tests cover consumer policies and class evidence. The
+library currently runs 167 tests. Eleven Maven consumers include a complete `orders` example and
+intended rejections for multiple owners, generated domain construction, misplaced factories and
+corrupt bytecode. Consumer processes resolve installed artifacts in the isolated Invoker repository;
+pre/post-build helpers only prepare and inspect their worktrees.
+
+The reference initially ran both bytecode executors: both approved 35 classes and the 43-rule catalog.
+It then removed the legacy implementation and retained its six typed source checkers in a separate
+`SourceArchitectureGate`. Its existing Maven lifecycle negatives now assert the exact failing goal.
+Slices 3–4 remain pending.
 
 | Slice | Contracts | Owner after migration | Required evidence |
 | --- | --- | --- | --- |
