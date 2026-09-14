@@ -25,7 +25,7 @@ Use JDK 24 and the Maven 3.9.16 Wrapper:
 <plugin>
     <groupId>io.github.jf3env</groupId>
     <artifactId>architecture-maven-plugin</artifactId>
-    <version>0.4.0-SNAPSHOT</version>
+    <version>0.4.0</version>
     <configuration>
         <basePackage>com.ai.label</basePackage>
         <persistenceBoundary>com.ai.label.persistence.workspace.WorkspaceTransactions</persistenceBoundary>
