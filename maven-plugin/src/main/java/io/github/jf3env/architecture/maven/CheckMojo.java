@@ -30,6 +30,9 @@ public final class CheckMojo extends AbstractMojo {
   @Parameter(required = true)
   private String basePackage;
 
+  @Parameter(required = true)
+  private String persistenceBoundary;
+
   @Parameter private List<File> generatedSourceRoots;
 
   @Parameter(
@@ -99,7 +102,12 @@ public final class CheckMojo extends AbstractMojo {
         .forEach(roots::add);
     var classpath = project.getCompileClasspathElements().stream().map(Path::of).toList();
     return new SourceRequest(
-        basePackage, roots, generated, Path.of(project.getBuild().getOutputDirectory()), classpath);
+        basePackage,
+        persistenceBoundary,
+        roots,
+        generated,
+        Path.of(project.getBuild().getOutputDirectory()),
+        classpath);
   }
 
   private String render(SourceReport report) {
@@ -108,6 +116,8 @@ public final class CheckMojo extends AbstractMojo {
             : report.errors().isEmpty() ? "VIOLATIONS" : "ANALYSIS_ERROR")
         + "\nbasePackage="
         + basePackage
+        + "\npersistenceBoundary="
+        + persistenceBoundary
         + "\nsourceFiles="
         + report.sourceFiles()
         + "\nrules="

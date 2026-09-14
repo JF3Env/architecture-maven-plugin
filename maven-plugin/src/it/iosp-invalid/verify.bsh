@@ -1,0 +1,28 @@
+import java.nio.file.Files;
+String report = Files.readString(new File(basedir, "target/architecture/iosp-report.txt").toPath());
+if (!report.startsWith("VIOLATIONS\n") || !report.contains("rules=[IospMixedAbstraction]")) {
+    throw new IllegalStateException("Expected the intended IOSP diagnostic: " + report);
+}
+if (!report.contains("IospMixedAbstraction | ") || !report.contains("OrderResource.java:18")) {
+    throw new IllegalStateException("Expected the defect located in OrderResource#label: " + report);
+}
+if (!report.contains("IOSP_MIXED: consumer.example.infra.orders.rest.OrderResource#label delegates via"
+        + " consumer.example.domain.orders.services.read.OrderService#read")
+        || !report.contains("but implements java.lang.String#concat")) {
+    throw new IllegalStateException("Expected the mixed-abstraction witness: " + report);
+}
+if (report.contains("ANALYSIS_ERROR") || report.contains("IOSP_UNRESOLVED")
+        || report.contains("IOSP_CREATOR_LOCATION") || report.contains("IOSP_COMPOSED_CONSTRUCTION")
+        || report.contains("IOSP_CONSTRUCTION_USE")) {
+    throw new IllegalStateException("Unrelated diagnostic: " + report);
+}
+String source = Files.readString(new File(basedir, "target/architecture/source-report.txt").toPath());
+if (!source.startsWith("PASSED\n")) {
+    throw new IllegalStateException("Only the IOSP contract may reject this consumer: " + source);
+}
+String log = Files.readString(new File(basedir, "build.log").toPath());
+if (log.contains("--- surefire:") || log.contains("COMPILATION ERROR")) {
+    throw new IllegalStateException("Unrelated failure: " + log);
+}
+if (!log.contains("IOSP contract violated")) throw new IllegalStateException("Expected the gate failure: " + log);
+return true;

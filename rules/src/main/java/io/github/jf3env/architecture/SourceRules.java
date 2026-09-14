@@ -1,5 +1,6 @@
 package io.github.jf3env.architecture;
 
+import io.github.jf3env.architecture.source.TypedSourceRuleCatalog;
 import java.io.IOException;
 import java.lang.classfile.ClassFile;
 import java.net.URL;
@@ -34,12 +35,16 @@ public final class SourceRules {
       var catalog = new SourceRuleCatalog(request.basePackage());
       var sets = catalog.load();
       var scope = new SourceScopeRule(request);
+      var typed = TypedSourceRuleCatalog.load(request.basePackage(), request.persistenceBoundary());
       try (var analysis = PmdAnalysis.create(configuration)) {
         sets.forEach(analysis::addRuleSet);
         analysis.addRuleSet(RuleSet.forSingleRule(scope));
+        typed.forEach(rule -> analysis.addRuleSet(RuleSet.forSingleRule(rule)));
         sources.forEach(path -> analysis.files().addFile(path));
         var report = analysis.performAnalysisAndCollectReport();
-        return result(report, sources.size(), scope.visited(), catalog.identities(sets));
+        var identities = new ArrayList<>(catalog.identities(sets));
+        typed.forEach(rule -> identities.add(rule.getName()));
+        return result(report, sources.size(), scope.visited(), List.copyOf(identities));
       }
     }
   }
