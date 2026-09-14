@@ -57,6 +57,25 @@ class StaticExceptionFactoryRuleTest {
             "class FakeException { static FakeException of() { return new FakeException(); } }"));
   }
 
+  @Test
+  void reportsTheIntendedNegativeDiagnostic() {
+    try (var analysis = PmdAnalysis.create(TypedSourceRuleFixture.configuration())) {
+      analysis.addRuleSet(RuleSet.forSingleRule(new StaticExceptionFactoryRule()));
+      analysis
+          .files()
+          .addSourceFile(
+              FileId.fromPathLikeString("Fixture.java"),
+              "class Fixture { static int helper() { return 1; } }");
+      var report = analysis.performAnalysisAndCollectReport();
+      assertEquals(1, report.getViolations().size());
+      var description = report.getViolations().getFirst().getDescription();
+      assertTrue(description.startsWith("STATIC_EXCEPTION_FACTORY: helper"), description);
+      assertTrue(
+          description.contains("must only return a new instance of its own Exception subtype"),
+          description);
+    }
+  }
+
   private static int violations(String source) {
     try (var analysis = PmdAnalysis.create(TypedSourceRuleFixture.configuration())) {
       analysis.addRuleSet(RuleSet.forSingleRule(new StaticExceptionFactoryRule()));
