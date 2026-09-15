@@ -25,19 +25,19 @@ class BytecodeInventoryTest {
     assertThrows(IOException.class, () -> inventory.inspect(temporary.resolve("missing")));
     assertThrows(IOException.class, () -> inventory.inspect(temporary));
     var output = compile("class Probe {}", List.of());
-    assertEquals(Set.of("consumer.example.domain.orders.Probe"), inventory.inspect(output));
+    assertEquals(Set.of("consumer.example.orders.domain.Probe"), inventory.inspect(output));
     Files.write(output.resolve("Broken.class"), new byte[] {0, 1, 2});
     var corrupt = assertThrows(IOException.class, () -> inventory.inspect(output));
     assertTrue(corrupt.getMessage().contains("Cannot inspect class file"));
     assertTrue(corrupt.getMessage().contains("Broken.class"));
     Files.delete(output.resolve("Broken.class"));
     Files.copy(
-        output.resolve("consumer/example/domain/orders/Probe.class"),
+        output.resolve("consumer/example/orders/domain/Probe.class"),
         output.resolve("Duplicate.class"));
     assertTrue(
         assertThrows(IOException.class, () -> inventory.inspect(output))
             .getMessage()
-            .contains("Duplicate class consumer.example.domain.orders.Probe"));
+            .contains("Duplicate class consumer.example.orders.domain.Probe"));
   }
 
   @Test
@@ -118,7 +118,7 @@ class BytecodeInventoryTest {
 
   private Path compile(String declaration, List<Path> dependencies) throws IOException {
     var source = temporary.resolve("Probe.java");
-    Files.writeString(source, "package consumer.example.domain.orders; " + declaration);
+    Files.writeString(source, "package consumer.example.orders.domain; " + declaration);
     var output = Files.createTempDirectory(temporary, "classes-");
     var arguments =
         new java.util.ArrayList<>(

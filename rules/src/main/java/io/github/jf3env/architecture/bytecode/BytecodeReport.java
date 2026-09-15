@@ -5,12 +5,12 @@ import java.util.List;
 public record BytecodeReport(
     int classFiles,
     List<String> rules,
-    List<DomainAuthority> authorities,
+    List<String> contexts,
     List<String> violations,
     List<String> errors) {
   public BytecodeReport {
     rules = List.copyOf(rules);
-    authorities = List.copyOf(authorities);
+    contexts = List.copyOf(contexts);
     violations = List.copyOf(violations);
     errors = List.copyOf(errors);
   }
