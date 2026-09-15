@@ -645,6 +645,38 @@ class ContextFirstRulesTest {
     rejects(rule(invalid, "BOUNDARY_CARRIER_STATE_IS_PRIVATE"), invalid, dto + ".id");
   }
 
+  @Test
+  void packageMetadataMayLiveInEveryBoundaryPackage() throws IOException {
+    var dto = BASE + ".orders.infrastructure.inbound.rest.dto.OrderDto";
+    var entity = BASE + ".orders.infrastructure.outbound.persistence.entities.OrderEntity";
+    var mapper = BASE + ".orders.infrastructure.inbound.rest.mappers.OrderRestMapper";
+    var marked = "@org.jspecify.annotations.NullMarked";
+    var classes =
+        fixture(
+            Map.of(
+                dto,
+                "public record OrderDto(long id) {}",
+                BASE + ".orders.infrastructure.inbound.rest.dto.package-info",
+                marked,
+                entity,
+                "@jakarta.persistence.Entity public class OrderEntity { @jakarta.persistence.Id private long id; }",
+                BASE + ".orders.infrastructure.outbound.persistence.entities.package-info",
+                marked,
+                mapper,
+                "@org.mapstruct.Mapper public interface OrderRestMapper { String dto(long id); }",
+                mapper + "Impl",
+                "public class OrderRestMapperImpl implements OrderRestMapper { public String dto(long id) { return \"\"; } }",
+                BASE + ".orders.infrastructure.inbound.rest.mappers.package-info",
+                marked));
+    for (var identity :
+        List.of(
+            "TRANSFER_OBJECT_PACKAGES_CONTAIN_ONLY_TRANSFER_OBJECTS",
+            "ENTITY_PACKAGES_CONTAIN_ONLY_ENTITIES",
+            "MAPPERS_USE_MAPSTRUCT")) {
+      accepts(rule(classes, identity), classes);
+    }
+  }
+
   private JavaClasses fixture(Map<String, String> declarations) throws IOException {
     var merged = new HashMap<>(PLATFORM_TYPES);
     merged.putAll(declarations);

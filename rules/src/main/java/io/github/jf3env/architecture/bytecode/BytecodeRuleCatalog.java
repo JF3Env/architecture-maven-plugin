@@ -275,7 +275,12 @@ public final class BytecodeRuleCatalog {
             .beFinal());
     rules.add(
         "TRANSFER_OBJECT_PACKAGES_CONTAIN_ONLY_TRANSFER_OBJECTS",
-        classes().that().resideInAPackage("..dto..").should().haveSimpleNameEndingWith("Dto"));
+        classes()
+            .that()
+            .resideInAPackage("..dto..")
+            .and(not(packageInfo()))
+            .should()
+            .haveSimpleNameEndingWith("Dto"));
     rules.add(
         "TRANSFER_OBJECTS_BELONG_TO_DTO_PACKAGES",
         classes().that().haveSimpleNameEndingWith("Dto").should().resideInAPackage("..dto.."));
@@ -290,7 +295,12 @@ public final class BytecodeRuleCatalog {
             .resideInAPackage(entities));
     rules.add(
         "ENTITY_PACKAGES_CONTAIN_ONLY_ENTITIES",
-        classes().that().resideInAPackage(entities).should().haveSimpleNameEndingWith("Entity"));
+        classes()
+            .that()
+            .resideInAPackage(entities)
+            .and(not(packageInfo()))
+            .should()
+            .haveSimpleNameEndingWith("Entity"));
     rules.add(
         "REST_TRANSFER_OBJECTS_DO_NOT_LEAK_INNER_LAYERS",
         noClasses()
@@ -316,6 +326,7 @@ public final class BytecodeRuleCatalog {
             .areInterfaces()
             .and()
             .resideInAPackage("..mappers..")
+            .and(not(packageInfo()))
             .should()
             .beAnnotatedWith(MAPPER)
             .andShould()

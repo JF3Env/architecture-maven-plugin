@@ -24,7 +24,8 @@ public final class IospRules {
             request.sourceRoot(),
             request.classesDirectory(),
             request.generatedRoots(),
-            request.basePackage());
+            request.basePackage(),
+            request.classpath());
     var report =
         IospAnalysis.analyze(
             request.sourceRoot(),

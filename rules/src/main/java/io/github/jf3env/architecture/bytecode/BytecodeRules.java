@@ -1,6 +1,7 @@
 package io.github.jf3env.architecture.bytecode;
 
 import com.tngtech.archunit.ArchConfiguration;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import java.io.IOException;
@@ -47,16 +48,24 @@ public final class BytecodeRules {
     return new URLClassLoader(urls.toArray(URL[]::new), ClassLoader.getPlatformClassLoader());
   }
 
+  /**
+   * Every direct dependency must be fully imported, except types that appear only as caught
+   * throwables: ArchUnit knows them by name without resolving them from the classpath, and no rule
+   * needs more than the name of a caught exception.
+   */
   private void verifyInventory(JavaClasses classes, Set<String> expected) {
     var imported = new TreeSet<String>();
     for (var type : classes) {
       imported.add(type.getName());
       if (!type.isFullyImported())
         throw new IllegalStateException("Incomplete class evidence: " + type.getName());
+      var caught = caughtThrowables(type);
       for (var dependency : type.getDirectDependenciesFromSelf()) {
         var target = dependency.getTargetClass();
         target = target.isArray() ? target.getBaseComponentType() : target;
-        if (!target.isPrimitive() && !target.isFullyImported()) {
+        if (!target.isPrimitive()
+            && !target.isFullyImported()
+            && !caught.contains(target.getName())) {
           throw new IllegalStateException(
               "Unresolved class evidence: " + type.getName() + " depends on " + target.getName());
         }
@@ -69,6 +78,16 @@ public final class BytecodeRules {
               + ", imported "
               + imported);
     }
+  }
+
+  private static Set<String> caughtThrowables(JavaClass type) {
+    var names = new TreeSet<String>();
+    for (var unit : type.getCodeUnits()) {
+      for (var block : unit.getTryCatchBlocks()) {
+        block.getCaughtThrowables().forEach(caught -> names.add(caught.getName()));
+      }
+    }
+    return names;
   }
 
   private BytecodeReport evaluate(BytecodePolicy policy, JavaClasses classes) {

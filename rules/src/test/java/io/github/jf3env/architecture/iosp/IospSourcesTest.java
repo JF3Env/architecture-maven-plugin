@@ -415,6 +415,28 @@ class IospSourcesTest {
   }
 
   @Test
+  void caughtLibraryExceptionsVerifyAgainstTheConsumerClasspathOnly() throws IOException {
+    var unit =
+        this.source(
+            "Guarded.java",
+            "class Guarded { int run(Runnable work) { try { work.run(); return 1; }"
+                + " catch (jakarta.persistence.PersistenceException failure) { return 2; } } }");
+    this.compile(unit);
+    var jar =
+        Path.of(
+            java.net.URI.create(
+                jakarta.persistence.PersistenceException.class
+                    .getProtectionDomain()
+                    .getCodeSource()
+                    .getLocation()
+                    .toString()));
+    assertEquals(
+        List.of(unit),
+        IospSources.inspect(this.sources, this.classes, List.of(), "com.ai.label", List.of(jar))
+            .sources());
+  }
+
+  @Test
   void rejectsMissingSourceDirectory() {
     var failure =
         assertThrows(

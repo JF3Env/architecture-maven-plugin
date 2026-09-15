@@ -59,10 +59,24 @@ public final class IospSources {
   public static Inventory inspect(
       Path sources, Path classes, List<Path> generatedRoots, String basePackage)
       throws IOException {
+    return inspect(sources, classes, generatedRoots, basePackage, List.of());
+  }
+
+  /**
+   * Dependencies supply type-resolution evidence for bytecode verification only, for example the
+   * hierarchy of a caught library exception; they are never part of the analysed inventory.
+   */
+  public static Inventory inspect(
+      Path sources,
+      Path classes,
+      List<Path> generatedRoots,
+      String basePackage,
+      List<Path> classpath)
+      throws IOException {
     var handwritten = sourceUnits(sources, true, basePackage);
     var units = new LinkedHashMap<>(handwritten);
     var generated = generatedUnits(generatedRoots, units, basePackage);
-    var types = compiledTypes(classes, units, basePackage);
+    var types = compiledTypes(classes, units, basePackage, classpath);
     verifyDeclarations(units, types);
     verifyNests(units, types);
     verifyGenerated(generated, handwritten, types);
@@ -368,12 +382,17 @@ public final class IospSources {
   }
 
   private static Map<String, Type> compiledTypes(
-      Path classes, Map<String, SourceUnit> units, String basePackage) throws IOException {
+      Path classes, Map<String, SourceUnit> units, String basePackage, List<Path> classpath)
+      throws IOException {
     var types = new LinkedHashMap<String, Type>();
     var paths = inventory(classes, ".class", true);
+    var urls = new ArrayList<URL>();
+    urls.add(classes.toUri().toURL());
+    for (var entry : classpath) {
+      urls.add(entry.toUri().toURL());
+    }
     try (var loader =
-        new URLClassLoader(
-            new URL[] {classes.toUri().toURL()}, IospSources.class.getClassLoader())) {
+        new URLClassLoader(urls.toArray(URL[]::new), IospSources.class.getClassLoader())) {
       var parser =
           ClassFile.of(
               ClassFile.ClassHierarchyResolverOption.of(

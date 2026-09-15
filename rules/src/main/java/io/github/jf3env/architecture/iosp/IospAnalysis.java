@@ -49,7 +49,8 @@ public final class IospAnalysis {
     if (!Files.isDirectory(sourceRoot) || !Files.isDirectory(classes)) {
       throw new IllegalStateException("IOSP: source and compiled-class directories are required");
     }
-    var inventory = IospSources.inspect(sourceRoot, classes, generatedRoots, basePackage);
+    var inventory =
+        IospSources.inspect(sourceRoot, classes, generatedRoots, basePackage, classpath);
     var sources = inventory.sources();
     var configuration = configuration();
     var entries = new ArrayList<String>();

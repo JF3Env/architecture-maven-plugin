@@ -77,6 +77,22 @@ class BytecodeInventoryTest {
   }
 
   @Test
+  void caughtLibraryThrowablesAreKnownByNameWithoutClasspathResolution() throws IOException {
+    var output =
+        compile(
+            "class Probe { int run(Runnable work) { try { work.run(); return 1; }"
+                + " catch (jakarta.persistence.PersistenceException failure) { return 2; } } }",
+            List.of(persistenceApi()));
+    var policy = TestPolicies.orders("consumer.example");
+    var report =
+        new BytecodeRules().analyze(new BytecodeRequest(policy, output, List.of(persistenceApi())));
+    assertEquals(1, report.classFiles());
+    assertTrue(
+        report.violations().stream().anyMatch(line -> line.startsWith("DOMAIN_IS_FRAMEWORK_FREE")),
+        report.toString());
+  }
+
+  @Test
   void missingClasspathEntriesRetainTheirIdentity() throws IOException {
     var output = compile("class Probe {}", List.of());
     var request =
@@ -114,6 +130,19 @@ class BytecodeInventoryTest {
           assertThrows(IllegalStateException.class, () -> new BytecodeRules().analyze(request));
           assertFalse(ArchConfiguration.get().resolveMissingDependenciesFromClassPath());
         });
+  }
+
+  private static Path persistenceApi() {
+    try {
+      return Path.of(
+          jakarta.persistence.PersistenceException.class
+              .getProtectionDomain()
+              .getCodeSource()
+              .getLocation()
+              .toURI());
+    } catch (java.net.URISyntaxException failure) {
+      throw new IllegalStateException(failure);
+    }
   }
 
   private Path compile(String declaration, List<Path> dependencies) throws IOException {

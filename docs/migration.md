@@ -137,7 +137,11 @@ This is a breaking change for every consumer: the package grammar, the `persiste
 `frameworkPackages`. The library runs its 34 identities against compiled counterexamples in
 `ContextFirstRulesTest`; the Maven consumers carry a two-context fixture (`orders` and `billing` over a
 `platform`) so the context-boundary and cycle rules are exercised rather than vacuously true.
-Verified on 2026-09-15 with `./mvnw clean verify`: 589 library tests and 14 Maven consumers, no failures.
+Adopting the shape in the reference project surfaced two corrections: `check-bytecode` treats types that
+appear only as caught throwables as known by name (ArchUnit does not resolve them from the classpath),
+`package-info` classes are exempt from the DTO, entity and mapper suffix rules, and `check-iosp` verifies
+bytecode against the consumer compile classpath so a caught library exception resolves.
+Verified on 2026-09-15 with `./mvnw clean verify`: 592 library tests and 14 Maven consumers, no failures.
 
 | Slice | Contracts | Owner after migration | Required evidence |
 | --- | --- | --- | --- |

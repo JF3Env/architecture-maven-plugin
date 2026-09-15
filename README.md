@@ -114,7 +114,9 @@ evidence, PMD errors and suppressed violations fail the build.
 Inventories every application class, including generated implementations; dependencies are only
 resolution inputs. It requires complete imports and resolved direct dependencies, rejects empty, corrupt
 and duplicate inventories, executes every registered rule, enforces the required identities and runs the
-construction policy. Every required identity must select at least one class: a rule that checks nothing is
+construction policy. Types that appear only as caught throwables are known by name without classpath
+resolution; no rule needs more than the name of a caught exception. Package metadata (`package-info`)
+may live in any package. Every required identity must select at least one class: a rule that checks nothing is
 an analysis error, never an approval. Resolution cannot be disabled or replaced through ArchUnit
 configuration, and the analyzer preserves its caller's context classloader and configuration.
 
@@ -145,7 +147,8 @@ handwritten source root (`project.build.sourceDirectory`); additional compile so
 `check` but not by the IOSP whole-inventory proof. It is a separate goal because it needs a whole-inventory
 source/class provenance proof, a strictly stronger precondition than the per-file rules of `check`. IOSP is
 kept in `1.0.0` because it constrains method bodies while the context-first rules constrain the package
-graph; none of the new rules replaces it. Its ownership proof follows the shape above; the services whose
+graph; none of the new rules replaces it. Its bytecode verification resolves type hierarchies against the
+consumer compile classpath, so a caught library exception is resolvable. Its ownership proof follows the shape above; the services whose
 constructors must only wire collaborators are the `Service` and `Handler` types of a context's domain and
 application layers, and the composition root that may allocate beans is `<context>.infrastructure.wiring`.
 
