@@ -1476,10 +1476,10 @@ class CompiledInvocationsTest {
 
   @Test
   void twoSourceUnitsKeepAdapterSelfConstructionSeparateFromMissingBindings() throws Exception {
-    var value = "package com.ai.label.domain.probe; public class Value {}";
+    var value = "package com.ai.label.probe.domain; public class Value {}";
     var adapter =
         """
-        package com.ai.label.persistence.probe;
+        package com.ai.label.probe.infrastructure;
         @lombok.AllArgsConstructor public class AdapterFactory {
           final int number;
           final String text;
@@ -1509,7 +1509,7 @@ class CompiledInvocationsTest {
   void recoveredConstructorsStillRejectCalculationInsideAFactory() throws Exception {
     var source =
         """
-        package com.ai.label.domain.probe;
+        package com.ai.label.probe.domain;
         @lombok.Value public class DataFactory {
           int count;
           static DataFactory scale(int count) { return new DataFactory(count * 2); }
@@ -1544,8 +1544,8 @@ class CompiledInvocationsTest {
     @Override
     protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
       if (name.startsWith("fixtures.")
-          || name.startsWith("com.ai.label.persistence.probe.")
-          || name.startsWith("com.ai.label.domain.probe.")) {
+          || name.startsWith("com.ai.label.probe.infrastructure.")
+          || name.startsWith("com.ai.label.probe.domain.")) {
         this.applicationLoads++;
         throw new AssertionError("Application class loading is forbidden: " + name);
       }

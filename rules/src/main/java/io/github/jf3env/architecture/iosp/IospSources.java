@@ -1,5 +1,6 @@
 package io.github.jf3env.architecture.iosp;
 
+import io.github.jf3env.architecture.ContextShape;
 import java.io.IOException;
 import java.lang.classfile.Attributes;
 import java.lang.classfile.ClassFile;
@@ -16,7 +17,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 import net.sourceforge.pmd.lang.LanguageProcessorRegistry;
 import net.sourceforge.pmd.lang.ast.FileAnalysisException;
 import net.sourceforge.pmd.lang.ast.Parser.ParserTask;
@@ -59,10 +59,24 @@ public final class IospSources {
   public static Inventory inspect(
       Path sources, Path classes, List<Path> generatedRoots, String basePackage)
       throws IOException {
+    return inspect(sources, classes, generatedRoots, basePackage, List.of());
+  }
+
+  /**
+   * Dependencies supply type-resolution evidence for bytecode verification only, for example the
+   * hierarchy of a caught library exception; they are never part of the analysed inventory.
+   */
+  public static Inventory inspect(
+      Path sources,
+      Path classes,
+      List<Path> generatedRoots,
+      String basePackage,
+      List<Path> classpath)
+      throws IOException {
     var handwritten = sourceUnits(sources, true, basePackage);
     var units = new LinkedHashMap<>(handwritten);
     var generated = generatedUnits(generatedRoots, units, basePackage);
-    var types = compiledTypes(classes, units, basePackage);
+    var types = compiledTypes(classes, units, basePackage, classpath);
     verifyDeclarations(units, types);
     verifyNests(units, types);
     verifyGenerated(generated, handwritten, types);
@@ -196,7 +210,13 @@ public final class IospSources {
       }
       var names = new LinkedHashSet<String>();
       var packageName = unit.getPackageName().replace('.', '/');
-      requireBackendPackage(packageName, path, basePackage);
+      var topLevelNames =
+          path.getFileName().toString().equals("package-info.java")
+              ? List.of(ContextShape.PACKAGE_INFO)
+              : unit.getTypeDeclarations().toList().stream()
+                  .map(ASTTypeDeclaration::getSimpleName)
+                  .toList();
+      requireOwnership(packageName, topLevelNames, path, basePackage);
       if (!root.resolve(packageName).equals(path.getParent())) {
         throw unavailable(
             "source package does not match resource path: " + path + " (" + packageName + ")");
@@ -224,18 +244,24 @@ public final class IospSources {
     }
   }
 
-  private static void requireBackendPackage(String name, Path path, String basePackage) {
-    var prefix = basePackage.replace('.', '/') + "/";
-    if (!name.matches(Pattern.quote(prefix) + "(domain|persistence|infra)/[^/]+(?:/[^/]+)*")) {
-      throw unavailable(
-          "type is outside backend ownership root "
-              + basePackage
-              + ".<layer>.<domain>: "
-              + path
-              + " ("
-              + name
-              + ")");
-    }
+  private static void requireOwnership(
+      String internalPackage, List<String> topLevelTypes, Path path, String basePackage) {
+    var shape = ContextShape.of(basePackage);
+    var packageName = internalPackage.replace('/', '.');
+    shape
+        .ownershipViolation(packageName, topLevelTypes)
+        .ifPresent(
+            reason -> {
+              throw unavailable(
+                  "type is outside backend ownership root "
+                      + shape.description()
+                      + ": "
+                      + path
+                      + " ("
+                      + internalPackage
+                      + "); "
+                      + reason);
+            });
   }
 
   private static boolean annotationType(ASTAnnotation annotation, String qualified) {
@@ -356,12 +382,17 @@ public final class IospSources {
   }
 
   private static Map<String, Type> compiledTypes(
-      Path classes, Map<String, SourceUnit> units, String basePackage) throws IOException {
+      Path classes, Map<String, SourceUnit> units, String basePackage, List<Path> classpath)
+      throws IOException {
     var types = new LinkedHashMap<String, Type>();
     var paths = inventory(classes, ".class", true);
+    var urls = new ArrayList<URL>();
+    urls.add(classes.toUri().toURL());
+    for (var entry : classpath) {
+      urls.add(entry.toUri().toURL());
+    }
     try (var loader =
-        new URLClassLoader(
-            new URL[] {classes.toUri().toURL()}, IospSources.class.getClassLoader())) {
+        new URLClassLoader(urls.toArray(URL[]::new), IospSources.class.getClassLoader())) {
       var parser =
           ClassFile.of(
               ClassFile.ClassHierarchyResolverOption.of(
@@ -369,8 +400,12 @@ public final class IospSources {
       for (var path : paths) {
         var model = readClass(parser, path);
         var name = model.thisClass().asInternalName();
-        requireBackendPackage(
-            name.substring(0, Math.max(0, name.lastIndexOf('/'))), path, basePackage);
+        var simple = name.substring(name.lastIndexOf('/') + 1);
+        requireOwnership(
+            name.substring(0, Math.max(0, name.lastIndexOf('/'))),
+            List.of(simple.contains("$") ? simple.substring(0, simple.indexOf('$')) : simple),
+            path,
+            basePackage);
         if (!classes.resolve(name + ".class").equals(path)) {
           throw unavailable(
               "compiled evidence has wrong type identity: " + path + " (" + name + ")");

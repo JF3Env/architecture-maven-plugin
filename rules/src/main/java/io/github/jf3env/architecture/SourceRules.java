@@ -35,7 +35,7 @@ public final class SourceRules {
       var catalog = new SourceRuleCatalog(request.basePackage());
       var sets = catalog.load();
       var scope = new SourceScopeRule(request);
-      var typed = TypedSourceRuleCatalog.load(request.basePackage(), request.persistenceBoundary());
+      var typed = TypedSourceRuleCatalog.load(request.aggregateRootAnnotation());
       try (var analysis = PmdAnalysis.create(configuration)) {
         sets.forEach(analysis::addRuleSet);
         analysis.addRuleSet(RuleSet.forSingleRule(scope));

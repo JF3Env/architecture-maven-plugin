@@ -4,10 +4,10 @@ final class TestPolicies {
   private TestPolicies() {}
 
   static BytecodePolicy reference() {
-    return new BytecodePolicy("com.ai.label");
+    return BytecodePolicy.of("com.ai.label");
   }
 
   static BytecodePolicy orders(String base) {
-    return new BytecodePolicy(base);
+    return BytecodePolicy.of(base);
   }
 }

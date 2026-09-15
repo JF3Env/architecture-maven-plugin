@@ -3,17 +3,17 @@
          xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
-    <description>Null and Optional contracts for production domain code.</description>
+    <description>Null and Optional contracts for production domain code, selected by the context-first domain package pattern.</description>
     <rule name="AvoidOptionalGet" language="java"
           message="Do not call Optional.get(); use an explicit alternative."
           class="net.sourceforge.pmd.lang.rule.xpath.XPathRule">
         <description>Prohibits direct java.util.Optional.get() calls.</description>
         <priority>2</priority>
         <properties>
-            <property name="domainPackage" type="String" value="com.ai.label.domain."
-                      description="Exact domain package prefix, including its final dot."/>
+            <property name="domainPackagePattern" type="String" value="^com\.ai\.label\.[^.]+\.domain(\..+)?$"
+                      description="Regular expression matching every domain package of every context and the platform."/>
             <property name="xpath"><value><![CDATA[
-//CompilationUnit[starts-with(@PackageName, $domainPackage)]
+//CompilationUnit[matches(@PackageName, $domainPackagePattern)]
     //MethodCall[pmd-java:matchesSig('java.util.Optional#get()')]
             ]]></value></property>
         </properties>
@@ -24,10 +24,10 @@
         <description>Prohibits null literals returned directly or through a conditional expression.</description>
         <priority>2</priority>
         <properties>
-            <property name="domainPackage" type="String" value="com.ai.label.domain."
-                      description="Exact domain package prefix, including its final dot."/>
+            <property name="domainPackagePattern" type="String" value="^com\.ai\.label\.[^.]+\.domain(\..+)?$"
+                      description="Regular expression matching every domain package of every context and the platform."/>
             <property name="xpath"><value><![CDATA[
-//CompilationUnit[starts-with(@PackageName, $domainPackage)]
+//CompilationUnit[matches(@PackageName, $domainPackagePattern)]
     //ReturnStatement//NullLiteral[
     every $ancestor in ancestor::*[ancestor::ReturnStatement]
     satisfies ($ancestor/self::ConditionalExpression or $ancestor/self::CastExpression)

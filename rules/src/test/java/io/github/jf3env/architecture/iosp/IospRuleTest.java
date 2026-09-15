@@ -12,7 +12,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class IospRuleTest {
   private static final String PREFIX =
       """
-      package com.ai.label.domain.probe;
+      package com.ai.label.probe.domain;
       import java.util.List;
       import java.util.UUID;
       interface Repository {

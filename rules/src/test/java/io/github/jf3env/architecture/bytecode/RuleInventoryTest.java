@@ -56,7 +56,7 @@ class RuleInventoryTest {
 
   @Test
   void allRequiredBackendContractsArePresent() {
-    var rules = new BytecodeRuleCatalog(TestPolicies.reference(), List.of()).rules();
+    var rules = new BytecodeRuleCatalog(TestPolicies.reference(), List.of("orders")).rules();
     assertTrue(rules.keySet().containsAll(new BytecodeContracts().requiredRules()));
     assertTrue(!new BytecodeContracts().requiredRules().isEmpty());
   }

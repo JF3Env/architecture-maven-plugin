@@ -15,7 +15,12 @@ import java.util.List;
 import java.util.Map;
 import javax.tools.ToolProvider;
 
-/** Valid Java counterexamples, isolated from unrelated architecture rules and stale class files. */
+/**
+ * Valid Java counterexamples, isolated from unrelated architecture rules and stale class files.
+ *
+ * <p>A declaration keyed {@code <package>.package-info} holds the package annotations; it is
+ * written before the package statement so that javac emits the package metadata class.
+ */
 final class CompiledArchitectureFixture {
   private CompiledArchitectureFixture() {}
 
@@ -29,7 +34,13 @@ final class CompiledArchitectureFixture {
       var path = sources.resolve(name.replace('.', '/') + ".java");
       Files.createDirectories(path.getParent());
       var packageName = name.substring(0, name.lastIndexOf('.'));
-      Files.writeString(path, "package " + packageName + ";\n" + declaration.getValue());
+      var simpleName = name.substring(name.lastIndexOf('.') + 1);
+      var statement = "package " + packageName + ";\n";
+      Files.writeString(
+          path,
+          simpleName.equals("package-info")
+              ? declaration.getValue() + "\n" + statement
+              : statement + declaration.getValue());
       arguments.add(path.toString());
     }
     assertEquals(

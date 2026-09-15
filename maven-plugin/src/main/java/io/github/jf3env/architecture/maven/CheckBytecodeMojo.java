@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.List;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -18,7 +19,7 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 
-/** Complete ArchUnit and construction-policy execution, independent of Surefire. */
+/** Complete context-first ArchUnit and construction-policy execution, independent of Surefire. */
 @Mojo(
     name = "check-bytecode",
     defaultPhase = LifecyclePhase.PROCESS_TEST_CLASSES,
@@ -30,6 +31,22 @@ public final class CheckBytecodeMojo extends AbstractMojo {
   @Parameter(required = true)
   private String basePackage;
 
+  /** The shared kernel's single package segment below {@code basePackage}; never a context. */
+  @Parameter(defaultValue = "platform")
+  private String platformPackage;
+
+  /** Fully qualified transaction-boundary type declared by the consumer's platform. */
+  @Parameter private String unitOfWorkType;
+
+  /** Fully qualified integration-event contract declared by the consumer's platform. */
+  @Parameter private String integrationEventType;
+
+  /** Fully qualified aggregate-root marker annotation declared by the consumer's platform. */
+  @Parameter private String aggregateRootAnnotation;
+
+  /** ArchUnit package patterns a bounded context's domain may never depend on. */
+  @Parameter private List<String> frameworkPackages;
+
   @Parameter(
       defaultValue = "${project.build.directory}/architecture/bytecode-report.txt",
       readonly = true)
@@ -40,19 +57,27 @@ public final class CheckBytecodeMojo extends AbstractMojo {
   @Override
   public void execute() throws MojoExecutionException, MojoFailureException {
     BytecodeReport report;
+    BytecodePolicy policy;
     try {
       if ("pom".equals(project.getPackaging())) {
         throw new IllegalArgumentException(
             "Apply check-bytecode to a complete application module, not a POM aggregator");
       }
-      var policy = new BytecodePolicy(basePackage);
+      policy =
+          new BytecodePolicy(
+              basePackage,
+              platformPackage,
+              unitOfWorkType,
+              integrationEventType,
+              aggregateRootAnnotation,
+              frameworkPackages);
       var request =
           new BytecodeRequest(
               policy,
               Path.of(project.getBuild().getOutputDirectory()),
               project.getCompileClasspathElements().stream().map(Path::of).toList());
       report = new BytecodeRules().analyze(request);
-      writeReport(render(report));
+      writeReport(render(policy, report));
     } catch (Exception failure) {
       try {
         writeReport("ANALYSIS_ERROR\n" + failure + "\n");
@@ -62,6 +87,7 @@ public final class CheckBytecodeMojo extends AbstractMojo {
       throw new MojoExecutionException(
           "Architecture bytecode analysis could not complete: " + failure.getMessage(), failure);
     }
+    getLog().info("Architecture contexts: " + report.contexts());
     report.rules().forEach(rule -> getLog().info("Architecture rule: " + rule));
     report.violations().forEach(getLog()::error);
     report.errors().forEach(getLog()::error);
@@ -73,19 +99,22 @@ public final class CheckBytecodeMojo extends AbstractMojo {
         .info(
             "Architecture: "
                 + report.rules().size()
-                + " backend rules and construction policy passed; "
+                + " context-first rules and construction policy passed; "
                 + report.classFiles()
                 + " application classes inspected");
   }
 
-  private String render(BytecodeReport report) {
+  private String render(BytecodePolicy policy, BytecodeReport report) {
     var lines = new ArrayList<String>();
     lines.add(
         report.passed() ? "PASSED" : report.errors().isEmpty() ? "VIOLATIONS" : "ANALYSIS_ERROR");
-    lines.add("basePackage=" + basePackage);
-    for (var authority : report.authorities()) {
-      lines.add("authority[" + authority.domain() + "]=" + authority.describe());
-    }
+    lines.add("basePackage=" + policy.basePackage());
+    lines.add("platformPackage=" + policy.platformPackage());
+    lines.add("unitOfWorkType=" + policy.unitOfWorkType());
+    lines.add("integrationEventType=" + policy.integrationEventType());
+    lines.add("aggregateRootAnnotation=" + policy.aggregateRootAnnotation());
+    lines.add("frameworkPackages=" + policy.frameworkPackages());
+    lines.add("contexts=" + report.contexts());
     lines.add("classFiles=" + report.classFiles());
     lines.add("rules=" + report.rules());
     lines.add("constructionPolicy=EXECUTED");

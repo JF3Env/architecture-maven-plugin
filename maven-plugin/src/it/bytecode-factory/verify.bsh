@@ -1,3 +1,0 @@
-new io.github.jf3env.architecture.maven.BytecodeFixtureProject().verify(basedir.toPath(), "VIOLATIONS",
-    java.util.List.of("FACTORY_CONSUMER_PACKAGE", "OrderService", "OrderFactory", "services.other.factory", "services.read.factory"));
-return true;

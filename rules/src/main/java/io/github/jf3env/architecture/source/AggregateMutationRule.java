@@ -23,24 +23,43 @@ import net.sourceforge.pmd.lang.java.ast.ASTUnaryExpression;
 import net.sourceforge.pmd.lang.java.ast.ASTVariableAccess;
 import net.sourceforge.pmd.lang.java.ast.JModifier;
 import net.sourceforge.pmd.lang.java.rule.AbstractJavaRule;
+import net.sourceforge.pmd.lang.java.symbols.JClassSymbol;
 import net.sourceforge.pmd.lang.java.symbols.JFieldSymbol;
 import net.sourceforge.pmd.lang.java.symbols.JVariableSymbol;
 
-/** Mutable aggregate state has one guarded assignment boundary. */
+/**
+ * Mutable aggregate state has one guarded assignment boundary.
+ *
+ * <p>Aggregate roots are the classes annotated with the consumer's marker annotation; the package
+ * they live in no longer identifies them, because context-first domain packages are named after the
+ * ubiquitous language rather than after technical roles.
+ */
 public final class AggregateMutationRule extends AbstractJavaRule {
-  public AggregateMutationRule() {
+  private final String aggregateRootAnnotation;
+
+  public AggregateMutationRule(String aggregateRootAnnotation) {
+    if (aggregateRootAnnotation == null || aggregateRootAnnotation.isBlank()) {
+      throw new IllegalArgumentException("An aggregate root marker annotation is required");
+    }
+    this.aggregateRootAnnotation = aggregateRootAnnotation;
     setName("AggregateInvariantSetter");
     setLanguage(JavaLanguageModule.getInstance());
     setMessage("Mutable aggregate state must be guarded by its private setter");
   }
 
-  private static boolean aggregate(String packageName) {
-    return packageName.matches(".*\\bdomain\\.[^.]+\\.aggregate(?:\\..*)?");
+  private boolean aggregate(ASTTypeDeclaration type) {
+    return type.isAnnotationPresent(this.aggregateRootAnnotation);
+  }
+
+  private boolean aggregate(JClassSymbol type) {
+    return type != null
+        && type.getDeclaredAnnotations().stream()
+            .anyMatch(annotation -> annotation.isOfType(this.aggregateRootAnnotation));
   }
 
   @Override
   public Object visit(ASTClassDeclaration type, Object context) {
-    if (aggregate(type.getPackageName())
+    if (aggregate(type)
         && type.isAnyAnnotationPresent(Set.of("lombok.Setter", "lombok.Data"))
         && type.getDeclarations(ASTFieldDeclaration.class)
             .any(field -> !field.hasModifiers(JModifier.FINAL) && !field.isStatic())) {
@@ -53,7 +72,7 @@ public final class AggregateMutationRule extends AbstractJavaRule {
   public Object visit(ASTFieldDeclaration field, Object context) {
     var owner = field.ancestors(ASTTypeDeclaration.class).first();
     if (owner != null
-        && aggregate(owner.getPackageName())
+        && aggregate(owner)
         && !field.hasModifiers(JModifier.FINAL)
         && !field.isStatic()) {
       if (field.isAnnotationPresent("lombok.Setter")) {
@@ -86,7 +105,7 @@ public final class AggregateMutationRule extends AbstractJavaRule {
         || !(reference.getReferencedSym() instanceof JFieldSymbol field)
         || field.isFinal()
         || Modifier.isStatic(field.getModifiers())
-        || !aggregate(field.getPackageName())) {
+        || !aggregate(field.getEnclosingClass())) {
       return;
     }
     var method = write.ancestors(ASTMethodDeclaration.class).first();
@@ -175,5 +194,10 @@ public final class AggregateMutationRule extends AbstractJavaRule {
         "AGGREGATE_INVARIANT_SETTER: use immediate rejecting guards and assign the unchanged parameter"
             + " directly to this field in its private setter; no generated setters or bypass writes";
     asCtx(context).addViolationNoSuppress(node, node.getAstInfo(), "{0}", message);
+  }
+
+  @Override
+  public AggregateMutationRule deepCopy() {
+    return new AggregateMutationRule(this.aggregateRootAnnotation);
   }
 }

@@ -32,9 +32,9 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class IospSourcesTest {
-  private static final String DOMAIN = "com/ai/label/domain";
-  private static final String PACKAGE = DOMAIN + "/probe";
-  private static final String DECLARATION = "package com.ai.label.domain.probe;\n";
+  private static final String DOMAIN = "com/ai/label/probe";
+  private static final String PACKAGE = DOMAIN + "/domain";
+  private static final String DECLARATION = "package com.ai.label.probe.domain;\n";
   private static final String MAPSTRUCT =
       "@javax.annotation.processing.Generated(value = \"org.mapstruct.ap.MappingProcessor\")\n";
   private static final FileTime SOURCE_TIME = FileTime.fromMillis(1_700_000_000_000L);
@@ -415,6 +415,28 @@ class IospSourcesTest {
   }
 
   @Test
+  void caughtLibraryExceptionsVerifyAgainstTheConsumerClasspathOnly() throws IOException {
+    var unit =
+        this.source(
+            "Guarded.java",
+            "class Guarded { int run(Runnable work) { try { work.run(); return 1; }"
+                + " catch (jakarta.persistence.PersistenceException failure) { return 2; } } }");
+    this.compile(unit);
+    var jar =
+        Path.of(
+            java.net.URI.create(
+                jakarta.persistence.PersistenceException.class
+                    .getProtectionDomain()
+                    .getCodeSource()
+                    .getLocation()
+                    .toString()));
+    assertEquals(
+        List.of(unit),
+        IospSources.inspect(this.sources, this.classes, List.of(), "com.ai.label", List.of(jar))
+            .sources());
+  }
+
+  @Test
   void rejectsMissingSourceDirectory() {
     var failure =
         assertThrows(
@@ -495,12 +517,12 @@ class IospSourcesTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"domain", "persistence", "infra"})
+  @ValueSource(strings = {"api", "domain", "application", "infrastructure"})
   void inventoriesOrdinaryClassesInterfacesEnumsRecordsAndAnnotationsWithoutAnyService(String layer)
       throws IOException {
     var unit =
         this.sourceIn(
-            "com.ai.label." + layer + ".probe",
+            "com.ai.label.probe." + layer,
             "Ordinary.java",
             """
         class Ordinary { int value(int n) { return n * 2; } }
@@ -518,11 +540,11 @@ class IospSourcesTest {
   @CsvSource({
     "domain, Ordinary",
     "domain, OrdinaryService",
-    "persistence, Ordinary",
-    "persistence, OrdinaryService",
-    "infra, Ordinary",
-    "infra, OrdinaryService",
-    "infra, MapperImpl"
+    "application, Ordinary",
+    "application, OrdinaryService",
+    "infrastructure, Ordinary",
+    "infrastructure, OrdinaryService",
+    "infrastructure, MapperImpl"
   })
   void compiledOrdinaryMixedOperationsReachTheRuleInEveryBackendLayer(String layer, String name)
       throws IOException {
@@ -530,11 +552,11 @@ class IospSourcesTest {
         this.source("Collaborator.java", "public interface Collaborator { int load(); }");
     var unit =
         this.sourceIn(
-            "com.ai.label." + layer + ".probe",
+            "com.ai.label.probe." + layer,
             name + ".java",
             "class "
                 + name
-                + " { int run(com.ai.label.domain.probe.Collaborator input)"
+                + " { int run(com.ai.label.probe.domain.Collaborator input)"
                 + " { return input.load() + 1; } }");
     this.compile(collaborator, unit);
     assertEquals(
@@ -556,20 +578,20 @@ class IospSourcesTest {
 
   @ParameterizedTest
   @CsvSource({
-    "persistence, uncompiled",
-    "infra, uncompiled",
-    "persistence, deleted-class",
-    "infra, deleted-class",
-    "persistence, deleted-source",
-    "infra, deleted-source",
-    "persistence, stale",
-    "infra, stale",
-    "persistence, corrupt",
-    "infra, corrupt"
+    "application, uncompiled",
+    "infrastructure, uncompiled",
+    "application, deleted-class",
+    "infrastructure, deleted-class",
+    "application, deleted-source",
+    "infrastructure, deleted-source",
+    "application, stale",
+    "infrastructure, stale",
+    "application, corrupt",
+    "infrastructure, corrupt"
   })
   void validatesEveryNonDomainSourceAndClass(String layer, String damage) throws IOException {
     this.validService();
-    var packageName = "com.ai.label." + layer + ".probe";
+    var packageName = "com.ai.label.probe." + layer;
     var unit = this.sourceIn(packageName, "Ordinary.java", "class Ordinary {}");
     var compiled = this.classes.resolve(packageName.replace('.', '/')).resolve("Ordinary.class");
     if (damage.equals("uncompiled")) {
@@ -703,12 +725,12 @@ class IospSourcesTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"domain", "persistence", "infra"})
+  @ValueSource(strings = {"api", "domain", "application", "infrastructure"})
   void lombokGeneratedMembersBelongToTheirHandwrittenSourceAndRequireCompleteNests(String layer)
       throws IOException {
     var unit =
         this.sourceIn(
-            "com.ai.label." + layer + ".probe",
+            "com.ai.label.probe." + layer,
             "Ordinary.java",
             "@lombok.Value @lombok.Builder class Ordinary { int value; }");
     this.compileWithOptions(
@@ -716,7 +738,7 @@ class IospSourcesTest {
         "-g",
         unit);
     var builder =
-        this.classes.resolve("com/ai/label/" + layer + "/probe/Ordinary$OrdinaryBuilder.class");
+        this.classes.resolve("com/ai/label/probe/" + layer + "/Ordinary$OrdinaryBuilder.class");
     assertTrue(Files.isRegularFile(builder));
     assertEquals(List.of(unit), IospSources.discover(this.sources, this.classes, "com.ai.label"));
     Files.delete(builder);
@@ -758,7 +780,12 @@ class IospSourcesTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"persistence, false", "infra, false", "persistence, true", "infra, true"})
+  @CsvSource({
+    "application, false",
+    "infrastructure, false",
+    "application, true",
+    "infrastructure, true"
+  })
   void excludesOnlyProvenMapstructUnitsRegardlessOfImplementationName(
       String layer, boolean abstractMapper) throws IOException {
     var fixture = this.mapstructFixture(layer, abstractMapper);
@@ -778,7 +805,7 @@ class IospSourcesTest {
 
   @Test
   void preservesRelativeRootsWithExplicitGeneratedProvenance() throws IOException {
-    var fixture = this.mapstructFixture("infra", false);
+    var fixture = this.mapstructFixture("infrastructure", false);
     var working = Path.of("").toAbsolutePath();
 
     assertEquals(
@@ -792,7 +819,7 @@ class IospSourcesTest {
 
   @Test
   void emptyGeneratedRootDoesNotExemptUnknownClasses() throws IOException {
-    var fixture = this.mapstructFixture("infra", false);
+    var fixture = this.mapstructFixture("infrastructure", false);
     Files.delete(fixture.unit);
 
     this.generatedRejected(
@@ -836,7 +863,7 @@ class IospSourcesTest {
 
   @Test
   void requiresEveryGeneratedTopLevelTypeToCarryProcessorMetadata() throws IOException {
-    var fixture = this.mapstructFixture("infra", false);
+    var fixture = this.mapstructFixture("infrastructure", false);
     Files.writeString(fixture.unit, Files.readString(fixture.unit) + "\nclass Intruder {}\n");
     this.compile(fixture.unit);
 
@@ -851,7 +878,7 @@ class IospSourcesTest {
         write(
             this.generated.resolve(PACKAGE).resolve("ShapeMapperImpl.java"),
             DECLARATION
-                + "import com.ai.label.domain.probe.Generated;\n"
+                + "import com.ai.label.probe.domain.Generated;\n"
                 + "@Generated(\"org.mapstruct.ap.MappingProcessor\")"
                 + " class ShapeMapperImpl implements ShapeMapper {}");
     this.compile(marker, mapper, unit);
@@ -951,7 +978,7 @@ class IospSourcesTest {
 
   @Test
   void mapperSourceAnnotationRequiresMatchingCompiledMetadata() throws IOException {
-    var fixture = this.mapstructFixture("infra", false);
+    var fixture = this.mapstructFixture("infrastructure", false);
     var mapperClass = fixture.compiled.resolveSibling("ShapeMapper.class");
     var parser = ClassFile.of();
     Files.write(
@@ -991,7 +1018,7 @@ class IospSourcesTest {
       })
   void generatedProvenanceDoesNotExemptCompiledEvidenceValidation(String damage)
       throws IOException {
-    var fixture = this.mapstructFixture("infra", false);
+    var fixture = this.mapstructFixture("infrastructure", false);
     switch (damage) {
       case "deleted-class" -> {
         Files.delete(fixture.compiled);
@@ -1023,11 +1050,11 @@ class IospSourcesTest {
   @Test
   void rejectsNewUncompiledGeneratedSourceEvenWhenAnotherGeneratedUnitIsComplete()
       throws IOException {
-    this.mapstructFixture("infra", false);
-    var unit = this.generated.resolve("com/ai/label/infra/probe/OtherCodec.java");
+    this.mapstructFixture("infrastructure", false);
+    var unit = this.generated.resolve("com/ai/label/probe/infrastructure/OtherCodec.java");
     write(
         unit,
-        "package com.ai.label.infra.probe;\n"
+        "package com.ai.label.probe.infrastructure;\n"
             + MAPSTRUCT
             + "class OtherCodec implements ShapeMapper { public int read(int value) { return value; } }");
 
@@ -1036,7 +1063,7 @@ class IospSourcesTest {
 
   @Test
   void currentBytecodeCannotMaskGeneratedSourceOlderThanItsMapper() throws IOException {
-    var fixture = this.mapstructFixture("persistence", false);
+    var fixture = this.mapstructFixture("application", false);
     Files.setLastModifiedTime(fixture.mapper, FileTime.fromMillis(SOURCE_TIME.toMillis() + 1));
 
     this.generatedRejected("stale", "ShapeMapper.java", "BoundCodec.java");
@@ -1045,7 +1072,7 @@ class IospSourcesTest {
   @Test
   void deletedMapperSourceCannotLeaveAnExemptGeneratedImplementation() throws IOException {
     this.validService();
-    var fixture = this.mapstructFixture("infra", false);
+    var fixture = this.mapstructFixture("infrastructure", false);
     Files.delete(fixture.mapper);
 
     this.generatedRejected("missing production-backend source", "ShapeMapper.java");
@@ -1105,7 +1132,7 @@ class IospSourcesTest {
   void handwrittenGeneratedMarkerDoesNotExemptMixedBehavior() throws IOException {
     var unit =
         this.sourceIn(
-            "com.ai.label.infra.probe",
+            "com.ai.label.probe.infrastructure",
             "ShapeMapperImpl.java",
             MAPSTRUCT
                 + "class ShapeMapperImpl { int load() { return 1; } int read() { return load() + 1; } }");
@@ -1140,7 +1167,7 @@ class IospSourcesTest {
 
   private GeneratedFixture mapstructFixture(String layer, boolean abstractMapper)
       throws IOException {
-    var packageName = "com.ai.label." + layer + ".probe";
+    var packageName = "com.ai.label.probe." + layer;
     var mapper =
         this.sourceIn(
             packageName,

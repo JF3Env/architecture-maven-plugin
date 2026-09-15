@@ -11,15 +11,11 @@ import net.sourceforge.pmd.properties.PropertyDescriptor;
 
 final class SourceRuleCatalog {
   private static final Set<String> REQUIRED =
-      Set.of(
-          "NoStaticMethods",
-          "RequireTypeImports",
-          "AvoidOptionalGet",
-          "DomainMethodsMustNotReturnNull");
-  private final String basePackage;
+      Set.of("RequireTypeImports", "AvoidOptionalGet", "DomainMethodsMustNotReturnNull");
+  private final ContextShape shape;
 
   SourceRuleCatalog(String basePackage) {
-    this.basePackage = basePackage;
+    this.shape = ContextShape.of(basePackage);
   }
 
   List<RuleSet> load() {
@@ -28,9 +24,9 @@ final class SourceRuleCatalog {
     for (var name : List.of("architecture.xml", "domain-null-contracts.xml")) {
       var ruleset = loader.loadFromResource("io/github/jf3env/architecture/" + name);
       for (var rule : ruleset.getRules()) {
-        var property = rule.getPropertyDescriptor("domainPackage");
+        var property = rule.getPropertyDescriptor("domainPackagePattern");
         if (property != null) {
-          configure(rule, property, basePackage + ".domain.");
+          configure(rule, property, shape.domainPackagePattern());
         }
       }
       sets.add(ruleset);

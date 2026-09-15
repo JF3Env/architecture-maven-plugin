@@ -24,7 +24,7 @@ class IospCreatorLocationTest {
   void jdkExceptionsRequireCustomExceptionSelfFactories(String creation) {
     var report =
         this.analyze(
-            "package com.ai.label.domain.probe; class Sample {"
+            "package com.ai.label.probe.domain; class Sample {"
                 + " void reject() { throw "
                 + creation
                 + "; } }");
@@ -33,7 +33,7 @@ class IospCreatorLocationTest {
 
   private static final String PREFIX =
       """
-      package com.ai.label.domain.probe.value;
+      package com.ai.label.probe.domain.value;
       final class Product { Product(int value) {} }
       """;
 
@@ -94,7 +94,7 @@ class IospCreatorLocationTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.infra.domains.producers;
+        package com.ai.label.probe.infrastructure.wiring;
         class Strategy {}
         class Service { Service(Strategy strategy) {} }
         class WorkspaceProducer {
@@ -118,7 +118,7 @@ class IospCreatorLocationTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.infra.domains.producers;
+        package com.ai.label.probe.infrastructure.wiring;
         class Strategy { Strategy(int value) {} }
         class Service { Service(Strategy strategy) {} }
         class WorkspaceProducer {
@@ -168,7 +168,7 @@ class IospCreatorLocationTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.domain.probe.exceptions;
+        package com.ai.label.probe.domain.exceptions;
         class Problem extends RuntimeException {}
         class Validation {
           void reject() { throw new Problem(); }
@@ -183,7 +183,7 @@ class IospCreatorLocationTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.domain.probe.value;
+        package com.ai.label.probe.domain.value;
         class Base { Base(String text) {} }
         class Child extends Base {
           Child() { this("default"); }
@@ -216,7 +216,7 @@ class IospCreatorLocationTest {
 
   @Test
   void verifiedInventoryNotPackageSpellingDeterminesApplicationOwnership() {
-    var name = "com.ai.label.domain.probe.external.LibraryValue";
+    var name = "com.ai.label.probe.domain.external.LibraryValue";
     var type = ClassDesc.of(name);
     var constructor = MethodTypeDesc.ofDescriptor("()V");
     var bytes =
@@ -247,11 +247,11 @@ class IospCreatorLocationTest {
         };
     var source =
         """
-        package com.ai.label.domain.probe;
-        import com.ai.label.domain.probe.external.LibraryValue;
+        package com.ai.label.probe.domain;
+        import com.ai.label.probe.domain.external.LibraryValue;
         class Consumer { LibraryValue create() { return new LibraryValue(); } }
         """;
-    var consumer = "com.ai.label.domain.probe.Consumer";
+    var consumer = "com.ai.label.probe.domain.Consumer";
     var external = IospAnalysis.analyzeSource(source, loader, "com.ai.label", Set.of(consumer));
     assertTrue(external.getProcessingErrors().isEmpty(), external.getProcessingErrors().toString());
     assertTrue(external.getViolations().isEmpty(), external.getViolations().toString());
@@ -290,11 +290,11 @@ class IospCreatorLocationTest {
       })
   void anonymousAndLocalApplicationClassesNeedAnAuthorizedCreator(String member) {
     var report =
-        this.analyze("package com.ai.label.domain.probe.value; class Ordinary { " + member + " }");
+        this.analyze("package com.ai.label.probe.domain.value; class Ordinary { " + member + " }");
     assertEquals(1, locations(report));
     var permitted =
         this.analyze(
-            "package com.ai.label.domain.probe.value; class OrdinaryFactory { " + member + " }");
+            "package com.ai.label.probe.domain.value; class OrdinaryFactory { " + member + " }");
     assertEquals(0, locations(permitted));
   }
 

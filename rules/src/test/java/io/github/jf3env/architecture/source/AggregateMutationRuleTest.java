@@ -1,5 +1,6 @@
 package io.github.jf3env.architecture.source;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -12,6 +13,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class AggregateMutationRuleTest {
+  private static final String PROBE_DOMAIN = "package com.ai.label.probe.domain;\n";
   @TempDir Path directory;
 
   @ParameterizedTest
@@ -64,6 +66,24 @@ class AggregateMutationRuleTest {
     assertTrue(report.getViolations().isEmpty(), report.getViolations().toString());
   }
 
+  @Test
+  void onlyClassesCarryingTheMarkerAreAggregateRoots() throws IOException {
+    var report =
+        TypedSourceRuleFixture.analyze(
+            this.directory,
+            PROBE_DOMAIN
+                + TypedSourceRuleFixture.MARKER_DECLARATION
+                + """
+        class Projection {
+          private long counter;
+          void reset() { this.counter = 0; }
+        }
+        """,
+            new AggregateMutationRule(TypedSourceRuleFixture.AGGREGATE_ROOT));
+    assertTrue(report.getViolations().isEmpty(), report.getViolations().toString());
+    assertThrows(IllegalArgumentException.class, () -> new AggregateMutationRule(" "));
+  }
+
   private void assertRejected(String body) throws IOException {
     var report = this.analyze(body);
     assertTrue(
@@ -76,14 +96,16 @@ class AggregateMutationRuleTest {
   private net.sourceforge.pmd.reporting.Report analyze(String body) throws IOException {
     return TypedSourceRuleFixture.analyze(
         this.directory,
-        """
-        package com.ai.label.domain.workspace.aggregate;
+        PROBE_DOMAIN
+            + TypedSourceRuleFixture.MARKER_DECLARATION
+            + """
         class NegativeCounterException extends RuntimeException {
           private NegativeCounterException(String message) { super(message); }
           static NegativeCounterException forValue(long value) {
             return new NegativeCounterException("negative_counter:" + value);
           }
         }
+        @AggregateRoot
         class Fixture {
           private long counter;
           private long otherValue;
@@ -94,8 +116,8 @@ class AggregateMutationRuleTest {
           private void setCounter(long value) { %s }
         }
         """
-            .formatted(body),
-        new AggregateMutationRule());
+                .formatted(body),
+        new AggregateMutationRule(TypedSourceRuleFixture.AGGREGATE_ROOT));
   }
 
   @Test
@@ -106,14 +128,16 @@ class AggregateMutationRuleTest {
           .files()
           .addSourceFile(
               FileId.fromPathLikeString("Sample.java"),
-              """
-          package com.ai.label.domain.workspace.aggregate;
+              PROBE_DOMAIN
+                  + TypedSourceRuleFixture.MARKER_DECLARATION
+                  + """
           class NegativeCounterException extends RuntimeException {
             private NegativeCounterException(String message) { super(message); }
             static NegativeCounterException forValue(long value) {
               return new NegativeCounterException("negative_counter");
             }
           }
+          @AggregateRoot
           class Sample {
             private long counter;
             Sample(long value) { setCounter(value); }
@@ -133,17 +157,17 @@ class AggregateMutationRuleTest {
   @ParameterizedTest
   @ValueSource(
       strings = {
-        "@lombok.NoArgsConstructor class Sample { @lombok.Setter(lombok.AccessLevel.PRIVATE) long counter; }",
-        "@lombok.Data class Sample { private long counter; }",
-        "class Sample { private long counter; Sample(long value) {"
+        "@AggregateRoot @lombok.NoArgsConstructor class Sample { @lombok.Setter(lombok.AccessLevel.PRIVATE) long counter; }",
+        "@AggregateRoot @lombok.Data class Sample { private long counter; }",
+        "@AggregateRoot class Sample { private long counter; Sample(long value) {"
             + " if (value < 0) throw new IllegalArgumentException(); this.counter = value; } }",
-        "@lombok.NoArgsConstructor class Sample { private long counter;"
+        "@AggregateRoot @lombok.NoArgsConstructor class Sample { private long counter;"
             + " private void setCounter(long value) { this.counter = value; } }",
         """
-          @lombok.NoArgsConstructor class Sample { private long counter;\
+          @AggregateRoot @lombok.NoArgsConstructor class Sample { private long counter;\
            private void setCounter(long value) { this.counter = value;\
            if (value < 0) throw new IllegalArgumentException(); } }""",
-        "@lombok.NoArgsConstructor class Sample { private long counter;"
+        "@AggregateRoot @lombok.NoArgsConstructor class Sample { private long counter;"
             + " void increment() { counter++; } }"
       })
   void rejectsMutationPathsThatBypassAValidatingPrivateSetter(String declaration) {
@@ -153,7 +177,7 @@ class AggregateMutationRuleTest {
           .files()
           .addSourceFile(
               FileId.fromPathLikeString("Sample.java"),
-              "package com.ai.label.domain.probe.aggregate; " + declaration);
+              PROBE_DOMAIN + TypedSourceRuleFixture.MARKER_DECLARATION + declaration);
       var report = analysis.performAnalysisAndCollectReport();
       assertTrue(report.getProcessingErrors().isEmpty(), report.getProcessingErrors().toString());
       assertTrue(

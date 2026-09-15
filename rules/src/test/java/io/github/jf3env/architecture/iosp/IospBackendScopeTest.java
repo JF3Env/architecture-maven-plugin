@@ -13,13 +13,13 @@ class IospBackendScopeTest {
   @ParameterizedTest
   @ValueSource(
       strings = {
-        "domain.probe.aggregate",
-        "domain.probe.value",
-        "domain.probe.repository.value",
-        "persistence.probe",
-        "persistence.probe.mappers",
-        "infra.probe.rest",
-        "infra.probe.rest.dto"
+        "probe.domain.aggregate",
+        "probe.domain.value",
+        "probe.domain.repository.value",
+        "probe.infrastructure",
+        "probe.infrastructure.mappers",
+        "probe.infrastructure.rest",
+        "probe.infrastructure.rest.dto"
       })
   void ordinaryBackendTypesCannotHideBehindTheirRoleOrName(String scope) {
     var report =
@@ -39,7 +39,8 @@ class IospBackendScopeTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"domain.probe.value", "domain.probe.aggregate", "infra.probe.rest.dto"})
+  @ValueSource(
+      strings = {"probe.domain.value", "probe.domain.aggregate", "probe.infrastructure.rest.dto"})
   void initializationKeepsOwnInvariantsWithoutManufacturingFactoryViolations(String scope) {
     var report =
         this.analyze(
@@ -76,7 +77,7 @@ class IospBackendScopeTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.domain.probe.value;
+        package com.ai.label.probe.domain.value;
         final class Scaled {
           private final int value;
           Scaled(int value) { validate(value); this.value = value * 2; }
@@ -94,7 +95,7 @@ class IospBackendScopeTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.persistence.probe;
+        package com.ai.label.probe.infrastructure;
         import java.io.IOException;
         import java.nio.file.Files;
         import java.nio.file.Path;
@@ -115,7 +116,7 @@ class IospBackendScopeTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.persistence.probe;
+        package com.ai.label.probe.infrastructure;
         final class Decoding {
           int length(String value) { return Math.max(1, value.strip().length()); }
         }
@@ -135,7 +136,7 @@ class IospBackendScopeTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.domain.probe;
+        package com.ai.label.probe.domain;
         class ProbeService {
           int input; Runnable action;
           static int read() { return 1; }
@@ -151,7 +152,7 @@ class IospBackendScopeTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.domain.probe;
+        package com.ai.label.probe.domain;
         class CallbackService {
           java.util.function.Supplier<Object> factory =
         """
@@ -165,7 +166,7 @@ class IospBackendScopeTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.domain.probe;
+        package com.ai.label.probe.domain;
         final class Product { final int n; Product(int n) { this.n = n; } }
         final class Composer {
           int n;
@@ -189,7 +190,7 @@ class IospBackendScopeTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.infra.probe;
+        package com.ai.label.probe.infrastructure;
         final class NonPositiveIncrementException extends RuntimeException {
           private NonPositiveIncrementException(String message) { super(message); }
           static NonPositiveIncrementException forAmount(int amount) {
@@ -212,7 +213,7 @@ class IospBackendScopeTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.infra.probe;
+        package com.ai.label.probe.infrastructure;
         final class NonPositiveIncrementException extends RuntimeException {
           private NonPositiveIncrementException(String message) { super(message); }
           static NonPositiveIncrementException forAmount(int amount) {
@@ -236,7 +237,7 @@ class IospBackendScopeTest {
   void relocatingAnAllocationWithinInstanceInitializationCannotHideComposition(String member) {
     var report =
         this.analyze(
-            "package com.ai.label.domain.probe.value; final class ContainerValue { "
+            "package com.ai.label.probe.domain.value; final class ContainerValue { "
                 + member
                 + " }");
     assertEquals(1, report.getViolations().size(), report.getViolations().toString());
@@ -249,7 +250,7 @@ class IospBackendScopeTest {
     var report =
         this.analyze(
             """
-        package com.ai.label.domain.probe.value;
+        package com.ai.label.probe.domain.value;
         final class ContainerValue {
           private static final Object SHARED = new Object();
           private static final Object OTHER;

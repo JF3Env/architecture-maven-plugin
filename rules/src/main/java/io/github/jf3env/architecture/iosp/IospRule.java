@@ -1,5 +1,6 @@
 package io.github.jf3env.architecture.iosp;
 
+import io.github.jf3env.architecture.ContextShape;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -66,6 +67,7 @@ public final class IospRule extends AbstractJavaRule {
   private final AtomicInteger checkedMethods;
   private final Set<String> applicationTypes;
   private final String basePackage;
+  private final ContextShape shape;
 
   public IospRule(String basePackage) {
     this(IospRule.class.getClassLoader(), basePackage);
@@ -95,6 +97,7 @@ public final class IospRule extends AbstractJavaRule {
     this.invocations = new CompiledInvocations(loader);
     this.loader = loader;
     this.basePackage = basePackage;
+    this.shape = ContextShape.of(basePackage);
     this.checkedMethods = checkedMethods;
     this.applicationTypes = applicationTypes;
   }
@@ -137,8 +140,10 @@ public final class IospRule extends AbstractJavaRule {
       throw new IllegalStateException("IOSP: invalid or excessively deep service inheritance");
     }
     var symbol = type.getSymbol();
-    if (symbol.getPackageName().startsWith(this.basePackage + ".domain.")
-        && symbol.getSimpleName().endsWith("Service")) {
+    var packageName = symbol.getPackageName();
+    var name = symbol.getSimpleName();
+    if ((this.shape.isDomainPackage(packageName) || this.shape.isApplicationPackage(packageName))
+        && (name.endsWith("Service") || name.endsWith("Handler"))) {
       return true;
     }
     var parent = type.getSuperClass();
@@ -151,7 +156,7 @@ public final class IospRule extends AbstractJavaRule {
 
   private boolean domainProducer(ASTTypeDeclaration owner) {
     var packageName = owner.getTypeMirror().getSymbol().getPackageName();
-    return packageName.equals(this.basePackage + ".infra.domains.producers")
+    return this.shape.isWiringPackage(packageName)
         && owner.ancestors(ASTTypeDeclaration.class).isEmpty()
         && owner.getSimpleName().matches("[A-Z][A-Za-z0-9]*Producer")
         && (owner

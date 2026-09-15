@@ -493,7 +493,7 @@ class VerifiedAccessorsTest {
   })
   void gateCombinesWideningDelegationWithArithmeticInSourceAndBinary(
       String fieldType, String returnType, int violations) throws Exception {
-    var declaration = "package com.ai.label.domain.probe;";
+    var declaration = "package com.ai.label.probe.domain;";
     var accessor =
         primitiveFixture(fieldType, returnType).replace("package fixtures;", declaration);
     var service =
@@ -928,7 +928,7 @@ class VerifiedAccessorsTest {
 
     @Override
     protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-      if (name.startsWith("fixtures.") || name.startsWith("com.ai.label.domain.probe.")) {
+      if (name.startsWith("fixtures.") || name.startsWith("com.ai.label.probe.domain.")) {
         this.applicationLoads++;
         throw new AssertionError("Application class loading is forbidden: " + name);
       }
@@ -937,7 +937,7 @@ class VerifiedAccessorsTest {
 
     @Override
     public InputStream getResourceAsStream(String name) {
-      if (name.startsWith("fixtures/") || name.startsWith("com/ai/label/domain/probe/")) {
+      if (name.startsWith("fixtures/") || name.startsWith("com/ai/label/probe/domain/")) {
         this.resourceReads++;
       }
       return super.getResourceAsStream(name);

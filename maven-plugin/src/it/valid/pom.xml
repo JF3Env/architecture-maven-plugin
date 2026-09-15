@@ -9,7 +9,6 @@
             <groupId>io.github.jf3env</groupId><artifactId>architecture-maven-plugin</artifactId><version>@project.version@</version>
             <configuration>
                 <basePackage>consumer.example</basePackage>
-                <persistenceBoundary>consumer.example.persistence.workspace.WorkspaceTransactions</persistenceBoundary>
             </configuration>
             <executions><execution><goals><goal>check</goal></goals></execution></executions>
         </plugin>

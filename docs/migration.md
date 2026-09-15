@@ -87,6 +87,62 @@ analysis inspects only the consumer's primary handwritten source root
 checkers and the XML rulesets, but not by the IOSP whole-inventory proof. This matches the reference
 project's pre-extraction behaviour, which also passed a single source root to its IOSP gate.
 
+## 1.0.0 — context-first
+
+`0.4.0` is the last version of the layer-first contract (`<base>.(domain|persistence|infra).<domain>`).
+`1.0.0` enforces the context-first shape of the sat-label plan (`plano-context-first.md`, Fase 7):
+`<base>.<context>.{api,domain,application,infrastructure}` plus a shared `<base>.<platform>`. Bounded
+contexts are derived from the compiled inventory, the way the persistence authority was derived in
+ARCH-4; only the platform's marker types are named, with defaults below the platform package.
+
+Retirements split by whether a rule *conflicts* with the target or is *orthogonal* to it. Retired because
+they conflict: `DOMAIN_TYPES_ARE_NOT_RECORDS`, `LombokSimpleAccessor`, `LombokSimpleConstructor`,
+`NoStaticMethods`, `StaticExceptionFactory`, `ExceptionSelfFactory`,
+`SUBPACKAGES_DO_NOT_ACCESS_ANCESTOR_PACKAGES`, the factory-per-consumer and domain-product parts of the
+construction policy, the per-domain producer, and every role-package rule (`DOMAIN_TYPES_DECLARE_THEIR_ROLE`,
+`DOMAIN_SERVICES_RESIDE_IN_OWN_SERVICE_PACKAGES`, `SERVICE_CAPABILITIES_DECLARE_TYPE_ROLES`,
+`DOMAIN_COMPONENTS_FOLLOW_STRUCTURAL_OWNERS`, `DOMAIN_INTERFACES_RESIDE_AT_THE_DOMAIN_ROOT`,
+`DOMAIN_ROOT_CLASSES_ARE_INTERFACES`, `DOMAIN_EXCEPTIONS_LIVE_IN_EXCEPTIONS_PACKAGES`,
+`APPLICATION_LAYER_IS_ABSENT`, the derived-authority trio). Kept because they are orthogonal: IOSP
+(adapted, not deleted), one-constructor/one-construction-owner, `AggregateInvariantSetter`, and the
+structural rules the plan marks MANTER. Rewritten over the new tree: `LAYER_COMMUNICATION` becomes
+`LAYERS_POINT_INWARD`, `CLASSES_ARE_GROUPED_BY_LAYER_AND_DOMAIN` becomes `CLASSES_RESIDE_IN_CONTEXT_SHAPE`,
+`DOMAINS_ARE_FREE_OF_CYCLES` becomes `CONTEXTS_ARE_FREE_OF_CYCLES`, the REST rules become
+`REST_TALKS_ONLY_TO_APPLICATION`, `DOMAIN_SERVICES_DO_NOT_EXPOSE_AGGREGATES` becomes
+`HANDLERS_DO_NOT_RETURN_AGGREGATES`, `TRANSACTION_ANNOTATIONS_BELONG_TO_PERSISTENCE` and the typed
+`PersistenceBoundary` become `TRANSACTIONS_BELONG_TO_APPLICATION` and `PERSISTENCE_IS_THE_ONLY_JPA_USER`,
+`PERSISTENCE_DOES_NOT_DEPEND_ON_DOMAIN_SERVICE_GATES` becomes `OUTBOUND_DOES_NOT_DEPEND_ON_APPLICATION`,
+`DOMAIN_SERVICES_ARE_CONSTRUCTED_BY_INFRASTRUCTURE` becomes `ONE_PRODUCER_PER_CONTEXT`. Added from the plan:
+`CONTEXTS_ONLY_TALK_THROUGH_API`, `API_IS_A_PUBLISHED_LANGUAGE`, `INTEGRATION_EVENTS_ARE_PUBLIC_RECORDS`,
+`PLATFORM_DEPENDS_ON_NO_CONTEXT`. Aggregate roots are recognised by the consumer's marker annotation, not
+by an `aggregate` package. `check-bytecode` executes 34 identities plus the construction policy;
+`check` executes four identities plus `SOURCE_INVENTORY`.
+
+Deliberate readings of the plan's literal suite, each recorded in the README: the platform belongs to no
+context layer (so `api` may implement `<platform>.domain.IntegrationEvent`), `<context>.infrastructure.wiring`
+is exempt from the transaction and JPA ownership rules because it is the composition root, REST may depend
+on `jakarta.enterprise..`, `api` may depend on `org.jspecify..`, records and enums are exempt from the
+construction policy, and IOSP treats `Handler` types of the application layer as services.
+
+A finding worth keeping in view: IOSP's creator-location contract (allocations only in `*Factory`,
+`*Mapper`, `*Builder` or the context producer) collides with principle P11 of the plan, under which
+records are constructed where they are consumed and forwarding factories are deleted. The consumer
+fixture satisfies both by routing every allocation through a factory or a MapStruct mapper, exactly as the
+reference project does today. Whether that is contorted code or acceptable discipline is the measurement
+the handover asks for before any further IOSP decision; the plugin does not pre-empt it.
+
+This is a breaking change for every consumer: the package grammar, the `persistenceBoundary` parameter
+(removed), the rule identities and the report layout all change. New optional parameters:
+`platformPackage`, `aggregateRootAnnotation`, `unitOfWorkType`, `integrationEventType`,
+`frameworkPackages`. The library runs its 34 identities against compiled counterexamples in
+`ContextFirstRulesTest`; the Maven consumers carry a two-context fixture (`orders` and `billing` over a
+`platform`) so the context-boundary and cycle rules are exercised rather than vacuously true.
+Adopting the shape in the reference project surfaced two corrections: `check-bytecode` treats types that
+appear only as caught throwables as known by name (ArchUnit does not resolve them from the classpath),
+`package-info` classes are exempt from the DTO, entity and mapper suffix rules, and `check-iosp` verifies
+bytecode against the consumer compile classpath so a caught library exception resolves.
+Verified on 2026-09-15 with `./mvnw clean verify`: 592 library tests and 14 Maven consumers, no failures.
+
 | Slice | Contracts | Owner after migration | Required evidence |
 | --- | --- | --- | --- |
 | 1 — Source rules | ARCH-09 `NoStaticMethods`, `RequireTypeImports`, `AvoidOptionalGet`, `DomainMethodsMustNotReturnNull` | Packaged rulesets and Maven `check` | Original controls, another base package, real Maven, restricted tests, suppression/error/empty-input rejection |

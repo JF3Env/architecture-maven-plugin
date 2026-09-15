@@ -14,10 +14,17 @@ import net.sourceforge.pmd.lang.java.rule.AbstractJavaRule;
 import net.sourceforge.pmd.lang.rule.RuleSet;
 import net.sourceforge.pmd.reporting.Report;
 
-/** Source-rule counterexamples must also be legal Java, independently of PMD's parser. */
+/**
+ * Source-rule counterexamples must also be legal Java, independently of PMD's parser.
+ *
+ * <p>Fixtures declare the aggregate-root marker themselves, in the probe domain package, so the
+ * rule resolves it from source exactly as it resolves a consumer's platform marker from its
+ * compiled classes.
+ */
 final class TypedSourceRuleFixture {
   static final String BASE_PACKAGE = "com.ai.label";
-  static final String BOUNDARY = "com.ai.label.persistence.workspace.WorkspaceTransactions";
+  static final String AGGREGATE_ROOT = BASE_PACKAGE + ".probe.domain.AggregateRoot";
+  static final String MARKER_DECLARATION = "@interface AggregateRoot {}\n";
 
   private TypedSourceRuleFixture() {}
 
@@ -33,46 +40,8 @@ final class TypedSourceRuleFixture {
   }
 
   static void addRules(PmdAnalysis analysis) {
-    TypedSourceRuleCatalog.load(BASE_PACKAGE, BOUNDARY)
+    TypedSourceRuleCatalog.load(AGGREGATE_ROOT)
         .forEach(rule -> analysis.addRuleSet(RuleSet.forSingleRule(rule)));
-  }
-
-  static void requireClean(Report report) {
-    if (!report.getProcessingErrors().isEmpty() || !report.getConfigurationErrors().isEmpty()) {
-      throw new IllegalStateException(
-          "Source architecture analysis failed: "
-              + report.getProcessingErrors()
-              + " "
-              + report.getConfigurationErrors());
-    }
-    if (!report.getViolations().isEmpty() || !report.getSuppressedViolations().isEmpty()) {
-      throw new IllegalStateException(
-          "Source architecture policy failed: " + report.getViolations());
-    }
-  }
-
-  static void check(Path sourceRoot, Path classesRoot) throws IOException {
-    if (!Files.isDirectory(sourceRoot) || !Files.isDirectory(classesRoot)) {
-      throw new IllegalStateException(
-          "Typed source policy requires source and compiled-class directories");
-    }
-    var configuration = configuration();
-    configuration.prependAuxClasspath(classesRoot.toAbsolutePath().toString());
-    try (var analysis = PmdAnalysis.create(configuration);
-        var files = Files.walk(sourceRoot)) {
-      var sources =
-          files
-              .filter(path -> path.toString().endsWith(".java"))
-              .filter(path -> !path.getFileName().toString().equals("package-info.java"))
-              .toList();
-      if (sources.isEmpty()) {
-        throw new IllegalStateException(
-            "No production Java sources were inspected for typed source rules");
-      }
-      addRules(analysis);
-      sources.forEach(path -> analysis.files().addFile(path));
-      requireClean(analysis.performAnalysisAndCollectReport());
-    }
   }
 
   static Report analyze(Path directory, String source, AbstractJavaRule... rules)
