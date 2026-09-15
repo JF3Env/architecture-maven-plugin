@@ -7,15 +7,13 @@ import javax.lang.model.SourceVersion;
 /**
  * Immutable inputs for one consumer; dependencies only provide type-resolution evidence.
  *
- * <p>{@code persistenceBoundary} names the one class whose {@code execute} method wraps all
- * JPA/EntityManager work; it is a single application-wide contract, not a per-domain authority, so
- * it is supplied explicitly rather than derived from the compiled inventory. IOSP structural
- * analysis inspects only the first entry of {@code sourceRoots}, the consumer's primary handwritten
- * source root.
+ * <p>{@code aggregateRootAnnotation} names the consumer's own marker annotation for aggregate
+ * roots; it lives in the consumer's platform and therefore cannot be referenced by this library.
+ * Bounded contexts are derived from the package shape, never configured.
  */
 public record SourceRequest(
     String basePackage,
-    String persistenceBoundary,
+    String aggregateRootAnnotation,
     List<Path> sourceRoots,
     List<Path> generatedRoots,
     Path classesDirectory,
@@ -24,9 +22,10 @@ public record SourceRequest(
     if (basePackage == null || !SourceVersion.isName(basePackage, SourceVersion.RELEASE_24)) {
       throw new IllegalArgumentException("A valid Java basePackage is required");
     }
-    if (persistenceBoundary == null
-        || !SourceVersion.isName(persistenceBoundary, SourceVersion.RELEASE_24)) {
-      throw new IllegalArgumentException("A valid Java persistenceBoundary class name is required");
+    if (aggregateRootAnnotation == null
+        || !SourceVersion.isName(aggregateRootAnnotation, SourceVersion.RELEASE_24)) {
+      throw new IllegalArgumentException(
+          "A valid Java aggregateRootAnnotation class name is required");
     }
     sourceRoots =
         sourceRoots.stream().map(path -> path.toAbsolutePath().normalize()).distinct().toList();

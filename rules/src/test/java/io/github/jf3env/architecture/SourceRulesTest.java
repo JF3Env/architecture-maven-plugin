@@ -16,16 +16,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
- * Every fixture's {@code Fixture} class relies on an implicit constructor, so {@code
- * LombokSimpleConstructor} is a standing finding across this file's minimal, dependency-free
- * fixtures; each assertion accounts for it explicitly rather than suppressing it, keeping fixtures
- * independent of Lombok on the analysis classpath.
+ * Minimal, dependency-free fixtures in the context-first shape {@code <base>.<context>.<layer>}.
  */
 class SourceRulesTest {
-  private static final String BOUNDARY = "com.acme.persistence.workspace.WorkspaceTransactions";
+  private static final String MARKER = ".platform.domain.AggregateRoot";
 
   @TempDir Path directory;
   private Path sources;
@@ -39,22 +37,16 @@ class SourceRulesTest {
 
   @Test
   void acceptsACompiledConsumerAndReportsActualRuleIdentities() throws Exception {
-    compile("com.acme.domain.orders", "int value() { return 1; }");
+    compile("com.acme.orders.domain", "int value() { return 1; }");
     var result = analyze("com.acme");
     assertEquals(1, result.sourceFiles());
-    assertEquals(Set.of("LombokSimpleConstructor"), findings(result));
+    assertEquals(Set.of(), findings(result));
     assertEquals(
         Set.of(
             "AvoidOptionalGet",
             "DomainMethodsMustNotReturnNull",
-            "NoStaticMethods",
             "RequireTypeImports",
-            "LombokSimpleConstructor",
-            "LombokSimpleAccessor",
-            "StaticExceptionFactory",
-            "AggregateInvariantSetter",
-            "ExceptionSelfFactory",
-            "PersistenceBoundary"),
+            "AggregateInvariantSetter"),
         Set.copyOf(result.rules()));
   }
 
@@ -62,20 +54,25 @@ class SourceRulesTest {
   @ValueSource(strings = {"com.acme", "com.ai.label", "org.example.longer.prefix"})
   void domainSelectorsFollowTheConsumerPackage(String base) throws Exception {
     compile(
-        base + ".domain.orders",
+        base + ".orders.domain.asset",
         "Object value(Optional<Object> input) { input.get(); return null; }");
     assertEquals(
-        Set.of("AvoidOptionalGet", "DomainMethodsMustNotReturnNull", "LombokSimpleConstructor"),
-        findings(analyze(base)));
+        Set.of("AvoidOptionalGet", "DomainMethodsMustNotReturnNull"), findings(analyze(base)));
+  }
+
+  @Test
+  void thePlatformDomainIsDomainCodeToo() throws Exception {
+    compile("com.acme.platform.domain", "Object value() { return null; }");
+    assertEquals(Set.of("DomainMethodsMustNotReturnNull"), findings(analyze("com.acme")));
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"infra", "persistence"})
-  void absenceRulesDoNotExpandIntoAdapters(String layer) throws Exception {
+  @ValueSource(strings = {"api", "application", "infrastructure"})
+  void absenceRulesDoNotExpandIntoOtherLayers(String layer) throws Exception {
     compile(
-        "com.acme." + layer + ".orders",
+        "com.acme.orders." + layer,
         "Object value(Optional<Object> input) { input.get(); return null; }");
-    assertEquals(Set.of("LombokSimpleConstructor"), findings(analyze("com.acme")));
+    assertEquals(Set.of(), findings(analyze("com.acme")));
   }
 
   @ParameterizedTest
@@ -84,26 +81,13 @@ class SourceRulesTest {
         "private static int helper() { return 1; }",
         "static Fixture of() { return new Fixture(); }",
         "static class Nested { static int value() { return 1; } }",
-        "interface Contract { static int value() { return 1; } }"
+        "interface Contract { static int value() { return 1; } }",
+        "record Command(long count) {}",
+        "Object create() { return new Object(); }"
       })
-  void preservesStaticMethodCounterexamples(String member) throws Exception {
-    compile("com.acme.domain.orders", member);
-    assertEquals(
-        Set.of("NoStaticMethods", "StaticExceptionFactory", "LombokSimpleConstructor"),
-        findings(analyze("com.acme")));
-  }
-
-  @Test
-  void exceptionSelfFactoriesKeepTheOriginalPermittedForm() throws Exception {
-    compile(
-        "com.acme.domain.orders",
-        """
-        static class Missing extends RuntimeException {
-          Missing(String message) { super(message); }
-          static Missing of(String message) { return new Missing(message); }
-        }
-        """);
-    assertEquals(Set.of("LombokSimpleConstructor"), findings(analyze("com.acme")));
+  void staticFactoriesRecordsAndPlainConstructionAreIdiomatic(String member) throws Exception {
+    compile("com.acme.orders.domain", member);
+    assertEquals(Set.of(), findings(analyze("com.acme")));
   }
 
   @ParameterizedTest
@@ -116,49 +100,59 @@ class SourceRulesTest {
         "java.util.function.Supplier<?> source() { return java.util.UUID::randomUUID; }"
       })
   void preservesQualifiedTypeCounterexamples(String member) throws Exception {
-    compile("com.acme.domain.orders", member);
-    assertEquals(
-        Set.of("RequireTypeImports", "LombokSimpleConstructor"), findings(analyze("com.acme")));
+    compile("com.acme.orders.domain", member);
+    assertEquals(Set.of("RequireTypeImports"), findings(analyze("com.acme")));
   }
 
   @Test
   void importedTypesWithAVisibleConflictingNameCanBeQualified() throws Exception {
-    compile("com.acme.domain.orders", "static class Date {} java.util.Date value;");
-    assertEquals(Set.of("LombokSimpleConstructor"), findings(analyze("com.acme")));
+    compile("com.acme.orders.domain", "static class Date {} java.util.Date value;");
+    assertEquals(Set.of(), findings(analyze("com.acme")));
   }
 
   @Test
   void invisibleNestedNamesDoNotJustifyQualification() throws Exception {
     compile(
-        "com.acme.domain.orders",
+        "com.acme.orders.domain",
         "static class Other { static class Date {} } java.util.Date value;");
-    assertEquals(
-        Set.of("RequireTypeImports", "LombokSimpleConstructor"), findings(analyze("com.acme")));
+    assertEquals(Set.of("RequireTypeImports"), findings(analyze("com.acme")));
   }
 
   @ParameterizedTest
   @ValueSource(strings = {"null", "(Object) null", "flag ? null : new Object()"})
   void preservesLiteralConditionalAndCastNullRejections(String expression) throws Exception {
-    compile("com.acme.domain.orders", "Object value(boolean flag) { return " + expression + "; }");
-    assertEquals(
-        Set.of("DomainMethodsMustNotReturnNull", "LombokSimpleConstructor"),
-        findings(analyze("com.acme")));
+    compile("com.acme.orders.domain", "Object value(boolean flag) { return " + expression + "; }");
+    assertEquals(Set.of("DomainMethodsMustNotReturnNull"), findings(analyze("com.acme")));
   }
 
   @Test
   void aGetMethodNameDoesNotImplyOptionalIdentity() throws Exception {
     compile(
-        "com.acme.domain.orders", "Object get() { return this; } Object value() { return get(); }");
-    assertEquals(Set.of("LombokSimpleConstructor"), findings(analyze("com.acme")));
+        "com.acme.orders.domain", "Object get() { return this; } Object value() { return get(); }");
+    assertEquals(Set.of(), findings(analyze("com.acme")));
   }
 
   @Test
   void optionalIdentityIsResolvedThroughCompiledConsumerMethods() throws Exception {
     compile(
-        "com.acme.domain.orders",
+        "com.acme.orders.domain",
         "Optional<Object> value() { return Optional.empty(); } Object read() { return value().get(); }");
+    assertEquals(Set.of("AvoidOptionalGet"), findings(analyze("com.acme")));
+  }
+
+  @Test
+  void aggregateRootsAreRecognizedByTheConsumersCompiledMarker() throws Exception {
+    var marker = sources.resolve("com/acme/platform/domain/AggregateRoot.java");
+    Files.createDirectories(marker.getParent());
+    Files.writeString(
+        marker, "package com.acme.platform.domain; public @interface AggregateRoot {}");
+    compileFile(marker);
+    compile(
+        "com.acme.orders.domain",
+        "@com.acme.platform.domain.AggregateRoot static class Order { private long count;"
+            + " void reset() { this.count = 0; } }");
     assertEquals(
-        Set.of("AvoidOptionalGet", "LombokSimpleConstructor"), findings(analyze("com.acme")));
+        Set.of("AggregateInvariantSetter", "RequireTypeImports"), findings(analyze("com.acme")));
   }
 
   @ParameterizedTest
@@ -166,10 +160,10 @@ class SourceRulesTest {
       strings = {
         "@SuppressWarnings(\"PMD.DomainMethodsMustNotReturnNull\") Object value() { return null; }",
         "Object value() { return null; } // NOPMD",
-        "@javax.annotation.processing.Generated(\"handwritten\") static int value() { return 1; }"
+        "@javax.annotation.processing.Generated(\"handwritten\") Object value() { return null; }"
       })
   void suppressionAndGeneratedMarkersCannotProduceApproval(String member) throws Exception {
-    compile("com.acme.domain.orders", member);
+    compile("com.acme.orders.domain", member);
     var report = analyze("com.acme");
     assertFalse(report.passed(), report.toString());
     assertFalse(report.violations().isEmpty(), report.toString());
@@ -177,28 +171,59 @@ class SourceRulesTest {
 
   @Test
   void wrongBasePackageCannotHideEverySource() throws Exception {
-    compile("com.acme.domain.orders", "int value() { return 1; }");
+    compile("com.acme.orders.domain", "int value() { return 1; }");
+    assertEquals(Set.of("SOURCE_INVENTORY"), findings(analyze("org.wrong")));
     assertEquals(
-        Set.of("SOURCE_INVENTORY", "LombokSimpleConstructor"), findings(analyze("org.wrong")));
-    assertEquals(
-        Set.of("LombokSimpleConstructor"),
+        Set.of(),
         findings(analyze("com.acme")),
         "another request must not inherit the previous consumer configuration");
   }
 
+  @ParameterizedTest
+  @CsvSource({
+    "com.acme, Application, true",
+    "com.acme, Helper, false",
+    "com.acme.orders, package-info, true",
+    "com.acme.orders, Stray, false",
+    "com.acme.orders.services, OrderService, false",
+    "com.acme.domain.orders, Order, false",
+    "com.acme.orders.infrastructure.outbound.persistence, OrderAdapter, true"
+  })
+  void onlyTheContextShapeTheBootstrapAndContextMetadataAreOwned(
+      String packageName, String type, boolean owned) throws Exception {
+    compile("com.acme.orders.domain", "int value() { return 1; }");
+    if (type.equals("package-info")) {
+      var file = sources.resolve(packageName.replace('.', '/') + "/package-info.java");
+      Files.writeString(file, "@Deprecated\npackage " + packageName + ";");
+      compileFile(file);
+    } else {
+      var file = sources.resolve(packageName.replace('.', '/') + "/" + type + ".java");
+      Files.createDirectories(file.getParent());
+      Files.writeString(file, "package " + packageName + "; class " + type + " {}");
+      compileFile(file);
+    }
+    var report = analyze("com.acme");
+    assertEquals(2, report.sourceFiles());
+    assertEquals(owned ? Set.of() : Set.of("SOURCE_INVENTORY"), findings(report));
+    if (!owned) {
+      assertTrue(
+          report.violations().stream().anyMatch(line -> line.contains(packageName)),
+          report.toString());
+    }
+  }
+
   @Test
   void rejectsPackageAndDirectoryDisagreement() throws Exception {
-    var source = compile("com.acme.domain.orders", "int value() { return 1; }");
+    var source = compile("com.acme.orders.domain", "int value() { return 1; }");
     Files.move(source, sources.resolve("Fixture.java"));
-    assertEquals(
-        Set.of("SOURCE_INVENTORY", "LombokSimpleConstructor"), findings(analyze("com.acme")));
+    assertEquals(Set.of("SOURCE_INVENTORY"), findings(analyze("com.acme")));
   }
 
   @Test
   void missingEmptyAndCorruptEvidenceIsRejected() throws Exception {
     assertThrows(IOException.class, () -> analyze("com.acme"));
-    compile("com.acme.domain.orders", "int value() { return 1; }");
-    var bytecode = classes.resolve("com/acme/domain/orders/Fixture.class");
+    compile("com.acme.orders.domain", "int value() { return 1; }");
+    var bytecode = classes.resolve("com/acme/orders/domain/Fixture.class");
     Files.write(bytecode, new byte[] {0, 1, 2});
     assertTrue(
         assertThrows(IOException.class, () -> analyze("com.acme"))
@@ -213,8 +238,8 @@ class SourceRulesTest {
 
   @Test
   void parseErrorsAreAnalysisFailuresRatherThanCleanReports() throws Exception {
-    var source = compile("com.acme.domain.orders", "int value() { return 1; }");
-    Files.writeString(source, "package com.acme.domain.orders; class Fixture { invalid Java");
+    var source = compile("com.acme.orders.domain", "int value() { return 1; }");
+    Files.writeString(source, "package com.acme.orders.domain; class Fixture { invalid Java");
     var result = analyze("com.acme");
     assertFalse(result.passed());
     assertFalse(result.errors().isEmpty());
@@ -222,17 +247,16 @@ class SourceRulesTest {
 
   @Test
   void unresolvedExternalTypesCannotSilentlyWeakenTypedSelectors() throws Exception {
-    var source = compile("com.acme.domain.orders", "int value() { return 1; }");
+    var source = compile("com.acme.orders.domain", "int value() { return 1; }");
     Files.writeString(
         source,
-        "package com.acme.domain.orders; import missing.External; class Fixture { External value; }");
-    assertEquals(
-        Set.of("SOURCE_INVENTORY", "LombokSimpleConstructor"), findings(analyze("com.acme")));
+        "package com.acme.orders.domain; import missing.External; class Fixture { External value; }");
+    assertEquals(Set.of("SOURCE_INVENTORY"), findings(analyze("com.acme")));
   }
 
   @Test
   void sourceSymlinksAreRejected() throws Exception {
-    var source = compile("com.acme.domain.orders", "int value() { return 1; }");
+    var source = compile("com.acme.orders.domain", "int value() { return 1; }");
     Files.createSymbolicLink(sources.resolve("Alias.java"), source);
     assertTrue(
         assertThrows(IOException.class, () -> analyze("com.acme"))
@@ -243,38 +267,41 @@ class SourceRulesTest {
   @Test
   void inspectionDoesNotInitializeConsumerClasses() throws Exception {
     compile(
-        "com.acme.domain.orders",
+        "com.acme.orders.domain",
         "static { if (System.nanoTime() != 0) throw new AssertionError(\"INITIALIZED\"); }");
-    assertEquals(
-        Set.of("LombokSimpleConstructor", "ExceptionSelfFactory"), findings(analyze("com.acme")));
+    assertEquals(Set.of(), findings(analyze("com.acme")));
   }
 
   @Test
   void additionalSourceRootsAreAnalyzed() throws Exception {
-    compile("com.acme.domain.orders", "int value() { return 1; }");
+    compile("com.acme.orders.domain", "int value() { return 1; }");
     var extra = Files.createDirectory(directory.resolve("extra"));
-    var file = extra.resolve("com/acme/infra/orders/Extra.java");
+    var file = extra.resolve("com/acme/orders/infrastructure/Extra.java");
     Files.createDirectories(file.getParent());
     Files.writeString(
-        file, "package com.acme.infra.orders; class Extra { static int value() { return 1; } }");
+        file,
+        "package com.acme.orders.infrastructure; class Extra { java.util.UUID id() { return null; } }");
     var report =
         new SourceRules()
             .analyze(
                 new SourceRequest(
-                    "com.acme", BOUNDARY, List.of(sources, extra), List.of(), classes, List.of()));
+                    "com.acme",
+                    "com.acme" + MARKER,
+                    List.of(sources, extra),
+                    List.of(),
+                    classes,
+                    List.of()));
     assertEquals(2, report.sourceFiles());
-    assertEquals(
-        Set.of("NoStaticMethods", "StaticExceptionFactory", "LombokSimpleConstructor"),
-        findings(report));
+    assertEquals(Set.of("RequireTypeImports"), findings(report));
   }
 
   @Test
   void missingClasspathEntriesAreReported() throws Exception {
-    compile("com.acme.domain.orders", "int value() { return 1; }");
+    compile("com.acme.orders.domain", "int value() { return 1; }");
     var request =
         new SourceRequest(
             "com.acme",
-            BOUNDARY,
+            "com.acme" + MARKER,
             List.of(sources),
             List.of(),
             classes,
@@ -287,19 +314,20 @@ class SourceRulesTest {
 
   @Test
   void generatedConfigurationCannotExcludeTheHandwrittenRoot() {
+    var marker = "com.acme" + MARKER;
     assertThrows(
         IllegalArgumentException.class,
         () ->
             new SourceRequest(
-                "com.acme", BOUNDARY, List.of(sources), List.of(sources), classes, List.of()));
+                "com.acme", marker, List.of(sources), List.of(sources), classes, List.of()));
     assertThrows(
         IllegalArgumentException.class,
         () ->
             new SourceRequest(
-                "com..acme", BOUNDARY, List.of(sources), List.of(), classes, List.of()));
+                "com..acme", marker, List.of(sources), List.of(), classes, List.of()));
     assertThrows(
         IllegalArgumentException.class,
-        () -> new SourceRequest("com.acme", BOUNDARY, List.of(), List.of(), classes, List.of()));
+        () -> new SourceRequest("com.acme", marker, List.of(), List.of(), classes, List.of()));
     assertThrows(
         IllegalArgumentException.class,
         () ->
@@ -310,7 +338,8 @@ class SourceRulesTest {
   private SourceReport analyze(String base) throws IOException {
     return new SourceRules()
         .analyze(
-            new SourceRequest(base, BOUNDARY, List.of(sources), List.of(), classes, List.of()));
+            new SourceRequest(
+                base, base + MARKER, List.of(sources), List.of(), classes, List.of()));
   }
 
   private Path compile(String name, String members) throws IOException {
@@ -319,6 +348,11 @@ class SourceRulesTest {
     Files.writeString(
         file,
         "package " + name + "; import java.util.Optional; class Fixture { " + members + "\n}");
+    compileFile(file);
+    return file;
+  }
+
+  private void compileFile(Path file) {
     var exit =
         ToolProvider.getSystemJavaCompiler()
             .run(
@@ -328,11 +362,12 @@ class SourceRulesTest {
                 "-proc:none",
                 "--release",
                 "24",
+                "-classpath",
+                classes.toString(),
                 "-d",
                 classes.toString(),
                 file.toString());
     assertEquals(0, exit, "The counterexample must compile before analysis: " + file);
-    return file;
   }
 
   private Set<String> findings(SourceReport report) {

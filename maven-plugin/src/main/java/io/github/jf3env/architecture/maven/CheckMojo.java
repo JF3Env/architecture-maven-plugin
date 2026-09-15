@@ -1,5 +1,6 @@
 package io.github.jf3env.architecture.maven;
 
+import io.github.jf3env.architecture.ContextShape;
 import io.github.jf3env.architecture.SourceReport;
 import io.github.jf3env.architecture.SourceRequest;
 import io.github.jf3env.architecture.SourceRules;
@@ -30,8 +31,15 @@ public final class CheckMojo extends AbstractMojo {
   @Parameter(required = true)
   private String basePackage;
 
-  @Parameter(required = true)
-  private String persistenceBoundary;
+  /** The shared kernel's single package segment below {@code basePackage}; never a context. */
+  @Parameter(defaultValue = "platform")
+  private String platformPackage;
+
+  /**
+   * Fully qualified aggregate-root marker annotation declared by the consumer's platform; defaults
+   * to {@code <basePackage>.<platformPackage>.domain.AggregateRoot}.
+   */
+  @Parameter private String aggregateRootAnnotation;
 
   @Parameter private List<File> generatedSourceRoots;
 
@@ -45,6 +53,7 @@ public final class CheckMojo extends AbstractMojo {
   @Override
   public void execute() throws MojoExecutionException, MojoFailureException {
     SourceReport report;
+    SourceRequest request;
     try {
       if ("pom".equals(project.getPackaging())) {
         throw new IllegalArgumentException(
@@ -55,8 +64,9 @@ public final class CheckMojo extends AbstractMojo {
         throw new IllegalArgumentException(
             "This version supports Java release 24; configured release is " + release);
       }
-      report = new SourceRules().analyze(request());
-      writeReport(render(report));
+      request = request();
+      report = new SourceRules().analyze(request);
+      writeReport(render(request, report));
     } catch (Exception failure) {
       try {
         writeReport("ANALYSIS_ERROR\n" + failure + "\n");
@@ -101,23 +111,29 @@ public final class CheckMojo extends AbstractMojo {
         .filter(root -> generated.stream().noneMatch(root::startsWith))
         .forEach(roots::add);
     var classpath = project.getCompileClasspathElements().stream().map(Path::of).toList();
+    var marker =
+        aggregateRootAnnotation == null || aggregateRootAnnotation.isBlank()
+            ? ContextShape.of(basePackage, platformPackage).defaultAggregateRootAnnotation()
+            : aggregateRootAnnotation;
     return new SourceRequest(
         basePackage,
-        persistenceBoundary,
+        marker,
         roots,
         generated,
         Path.of(project.getBuild().getOutputDirectory()),
         classpath);
   }
 
-  private String render(SourceReport report) {
+  private String render(SourceRequest request, SourceReport report) {
     return (report.passed()
             ? "PASSED"
             : report.errors().isEmpty() ? "VIOLATIONS" : "ANALYSIS_ERROR")
         + "\nbasePackage="
-        + basePackage
-        + "\npersistenceBoundary="
-        + persistenceBoundary
+        + request.basePackage()
+        + "\nplatformPackage="
+        + platformPackage
+        + "\naggregateRootAnnotation="
+        + request.aggregateRootAnnotation()
         + "\nsourceFiles="
         + report.sourceFiles()
         + "\nrules="

@@ -4,19 +4,13 @@ import java.util.List;
 import net.sourceforge.pmd.lang.java.rule.AbstractJavaRule;
 
 /**
- * The six typed source checkers, configured for one consumer's base package and persistence
- * boundary.
+ * The typed source checkers that survive the context-first contract, configured for one consumer's
+ * aggregate-root marker annotation.
  */
 public final class TypedSourceRuleCatalog {
   private TypedSourceRuleCatalog() {}
 
-  public static List<AbstractJavaRule> load(String basePackage, String persistenceBoundary) {
-    return List.of(
-        new LombokConstructorRule(),
-        new LombokAccessorRule(),
-        new StaticExceptionFactoryRule(),
-        new AggregateMutationRule(),
-        new ExceptionConstructionRule(basePackage),
-        new PersistenceBoundaryRule(persistenceBoundary));
+  public static List<AbstractJavaRule> load(String aggregateRootAnnotation) {
+    return List.of(new AggregateMutationRule(aggregateRootAnnotation));
   }
 }
