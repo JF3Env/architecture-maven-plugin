@@ -6,8 +6,8 @@ if (!report.startsWith("VIOLATIONS\n") || !report.contains("rules=[IospMixedAbst
 if (!report.contains("IospMixedAbstraction | ") || !report.contains("OrderResource.java:18")) {
     throw new IllegalStateException("Expected the defect located in OrderResource#label: " + report);
 }
-if (!report.contains("IOSP_MIXED: consumer.example.infra.orders.rest.OrderResource#label delegates via"
-        + " consumer.example.domain.orders.services.read.OrderService#read")
+if (!report.contains("IOSP_MIXED: consumer.example.orders.infrastructure.inbound.rest.OrderResource#label delegates via"
+        + " consumer.example.orders.api.OrderRef#toString")
         || !report.contains("but implements java.lang.String#concat")) {
     throw new IllegalStateException("Expected the mixed-abstraction witness: " + report);
 }

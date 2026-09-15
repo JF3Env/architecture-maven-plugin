@@ -3,7 +3,7 @@ String report = Files.readString(new File(basedir, "target/architecture/source-r
 if (!report.startsWith("PASSED\n") || !report.contains("basePackage=consumer.example") || !report.contains("sourceFiles=1")) {
     throw new IllegalStateException("Expected a successful consumer analysis: " + report);
 }
-for (String rule : new String[] {"NoStaticMethods", "RequireTypeImports", "AvoidOptionalGet", "DomainMethodsMustNotReturnNull"}) {
+for (String rule : new String[] {"RequireTypeImports", "AvoidOptionalGet", "DomainMethodsMustNotReturnNull", "AggregateInvariantSetter"}) {
     if (!report.contains(rule)) throw new IllegalStateException("Missing executed rule " + rule);
 }
 String log = Files.readString(new File(basedir, "build.log").toPath());

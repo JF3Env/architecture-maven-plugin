@@ -1,2 +1,0 @@
-new io.github.jf3env.architecture.maven.BytecodeFixtureProject().prepare(basedir.toPath(), pluginVersion, "authority");
-return true;

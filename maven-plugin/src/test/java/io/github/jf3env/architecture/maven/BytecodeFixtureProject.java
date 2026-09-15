@@ -24,32 +24,61 @@ public final class BytecodeFixtureProject {
         Files.readString(original.resolve("pom.xml")).replace("@project.version@", version));
     var sources = target.resolve("src/main/java/consumer/example");
     switch (scenario) {
-      case "owners" ->
-          replace(
-              sources.resolve("domain/orders/services/read/OrderService.java"),
-              "  public OrderResult read() {",
-              "  public OrderResult extra() { return new OrderResult(2); }\n  public OrderResult read() {");
-      case "generated" ->
-          replace(
-              sources.resolve("infra/orders/rest/mappers/OrderRestMapper.java"),
-              "  OrderDto dto(OrderResult result);",
-              "  OrderDto dto(OrderResult result);\n  OrderResult illegal(OrderDto dto);");
-      case "factory" -> relocateFactory(sources);
-      case "authority" -> {
-        var domain = sources.resolve("domain/inventory");
-        Files.createDirectories(domain);
-        Files.writeString(
-            domain.resolve("package-info.java"),
-            "@NullMarked\n"
-                + "package consumer.example.domain.inventory;\n\n"
-                + "import org.jspecify.annotations.NullMarked;\n");
-        Files.writeString(
-            domain.resolve("InventoryRepository.java"),
-            "package consumer.example.domain.inventory;\n\n"
-                + "public interface InventoryRepository {\n"
-                + "  void save();\n"
-                + "}\n");
+      case "owners" -> {
+        var producer = sources.resolve("orders/infrastructure/wiring/OrdersProducer.java");
+        replace(
+            producer,
+            "import consumer.example.orders.application.PlaceOrderHandler;",
+            "import consumer.example.orders.application.PlaceOrderHandler;\n"
+                + "import consumer.example.orders.domain.Order;");
+        replace(
+            producer,
+            "  @Produces\n",
+            "  public Order sample() {\n    return new Order(1);\n  }\n\n  @Produces\n");
       }
+      case "generated" -> {
+        var mapper =
+            sources.resolve("orders/infrastructure/inbound/rest/mappers/OrderRestMapper.java");
+        replace(
+            mapper,
+            "import consumer.example.orders.api.OrderRef;",
+            "import consumer.example.orders.api.OrderRef;\n"
+                + "import consumer.example.orders.domain.Order;");
+        replace(
+            mapper,
+            "  OrderDto dto(OrderRef ref);",
+            "  OrderDto dto(OrderRef ref);\n\n  Order order(OrderDto dto);");
+      }
+      case "boundary" -> {
+        var handler = sources.resolve("billing/application/InvoiceOrderHandler.java");
+        replace(
+            handler,
+            "import consumer.example.orders.api.Orders;",
+            "import consumer.example.orders.api.Orders;\n"
+                + "import consumer.example.orders.domain.Order;");
+        replace(
+            handler,
+            "  public long invoice(long count) {",
+            "  public long count(Order order) {\n    return order.getCount();\n  }\n\n"
+                + "  public long invoice(long count) {");
+      }
+      case "producer" ->
+          Files.writeString(
+              sources.resolve("orders/infrastructure/wiring/ExtraProducer.java"),
+              """
+              package consumer.example.orders.infrastructure.wiring;
+
+              import jakarta.enterprise.inject.Produces;
+              import lombok.NoArgsConstructor;
+
+              @NoArgsConstructor
+              public final class ExtraProducer {
+                @Produces
+                public String label() {
+                  return "orders";
+                }
+              }
+              """);
       case "corrupt" -> {
         replace(
             target.resolve("pom.xml"),
@@ -69,33 +98,6 @@ public final class BytecodeFixtureProject {
       }
       default -> throw new IllegalArgumentException("Unknown fixture scenario: " + scenario);
     }
-  }
-
-  private void relocateFactory(Path sources) throws IOException {
-    var oldPackage = "consumer.example.domain.orders.services.read.factory";
-    var newPackage = "consumer.example.domain.orders.services.other.factory";
-    var oldDirectory = sources.resolve("domain/orders/services/read/factory");
-    var destination = sources.resolve("domain/orders/services/other/factory");
-    Files.createDirectories(destination);
-    var contract = oldDirectory.resolve("OrderFactory.java");
-    Files.writeString(
-        destination.resolve("OrderFactory.java"),
-        Files.readString(contract).replace(oldPackage, newPackage));
-    Files.delete(contract);
-    Files.writeString(
-        destination.resolve("package-info.java"),
-        Files.readString(oldDirectory.resolve("package-info.java"))
-            .replace(oldPackage, newPackage));
-    replace(
-        sources.resolve("domain/orders/services/read/OrderService.java"),
-        oldPackage + ".OrderFactory",
-        newPackage + ".OrderFactory");
-    replace(
-        oldDirectory.resolve("StandardOrderFactory.java"),
-        "import consumer.example.domain.orders.services.read.result.OrderResult;",
-        "import consumer.example.domain.orders.services.read.result.OrderResult;\nimport "
-            + newPackage
-            + ".OrderFactory;");
   }
 
   private void replace(Path file, String before, String after) throws IOException {

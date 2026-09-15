@@ -91,13 +91,13 @@ public final class BytecodeRuleCatalog {
         layeredArchitecture()
             .consideringOnlyDependenciesInLayers()
             .layer("api")
-            .definedBy(api)
+            .definedBy(contextLayer(api, platform))
             .layer("domain")
-            .definedBy(domain)
+            .definedBy(contextLayer(domain, platform))
             .layer("application")
-            .definedBy(application)
+            .definedBy(contextLayer(application, platform))
             .layer("infrastructure")
-            .definedBy(infrastructure)
+            .definedBy(contextLayer(infrastructure, platform))
             .whereLayer("infrastructure")
             .mayNotBeAccessedByAnyLayer()
             .whereLayer("application")
@@ -387,6 +387,13 @@ public final class BytecodeRuleCatalog {
             .anyMatch(target::test);
       }
     };
+  }
+
+  /** The platform is a shared kernel every layer may use; it belongs to no context layer. */
+  private static DescribedPredicate<JavaClass> contextLayer(String layer, String platform) {
+    return resideInAPackage(layer)
+        .and(not(resideInAPackage(platform)))
+        .as("reside in a package '" + layer + "' outside the platform");
   }
 
   private static DescribedPredicate<JavaClass> packageInfo() {

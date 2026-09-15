@@ -1,11 +1,14 @@
 import java.nio.file.Files;
 String report = Files.readString(new File(basedir, "target/architecture/bytecode-report.txt").toPath());
-if (!report.startsWith("PASSED\n") || !report.contains("authority[orders]=aggregate=consumer.example.domain.orders.aggregate.Order repository=consumer.example.domain.orders.OrderRepository") || !report.contains("constructionPolicy=EXECUTED")) {
+if (!report.startsWith("PASSED\n") || !report.contains("contexts=[billing, orders]") || !report.contains("constructionPolicy=EXECUTED")) {
     throw new IllegalStateException(report);
 }
+if (!report.contains("aggregateRootAnnotation=consumer.example.platform.domain.AggregateRoot")) {
+    throw new IllegalStateException("Markers must default to the platform: " + report);
+}
 String log = Files.readString(new File(basedir, "build.log").toPath());
-if (!log.contains("backend rules and construction policy passed") || log.contains("--- surefire:")) throw new IllegalStateException(log);
-if (!new File(basedir, "target/classes/consumer/example/infra/orders/rest/mappers/OrderRestMapperImpl.class").isFile()) {
+if (!log.contains("context-first rules and construction policy passed") || log.contains("--- surefire:")) throw new IllegalStateException(log);
+if (!new File(basedir, "target/classes/consumer/example/orders/infrastructure/inbound/rest/mappers/OrderRestMapperImpl.class").isFile()) {
     throw new IllegalStateException("Expected generated mapper bytecode");
 }
 return true;

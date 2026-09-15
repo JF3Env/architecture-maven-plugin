@@ -126,6 +126,7 @@ class ContextFirstRulesTest {
     "infrastructure, domain, true",
     "infrastructure, application, true",
     "domain, api, true",
+    "api, platform, true",
     "api, domain, false",
     "domain, application, false",
     "domain, infrastructure, false",
@@ -134,7 +135,10 @@ class ContextFirstRulesTest {
   void layersPointInward(String originLayer, String targetLayer, boolean allowed)
       throws IOException {
     var origin = BASE + ".orders." + originLayer + ".Origin";
-    var target = BASE + ".orders." + targetLayer + ".Target";
+    var target =
+        targetLayer.equals("platform")
+            ? PLATFORM + ".domain.Target"
+            : BASE + ".orders." + targetLayer + ".Target";
     var declarations = new HashMap<String, String>();
     declarations.put(origin, "public class Origin { " + target + " target; }");
     declarations.put(target, "public class Target {}");

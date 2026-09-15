@@ -1,0 +1,3 @@
+new io.github.jf3env.architecture.maven.BytecodeFixtureProject().verify(basedir.toPath(), "VIOLATIONS",
+    java.util.List.of("CONTEXTS_ONLY_TALK_THROUGH_API", "billing", "consumer.example.orders.domain.Order"));
+return true;
