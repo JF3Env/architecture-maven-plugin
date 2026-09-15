@@ -1,5 +1,6 @@
 package io.github.jf3env.architecture.iosp;
 
+import io.github.jf3env.architecture.ContextShape;
 import java.io.IOException;
 import java.lang.classfile.Attributes;
 import java.lang.classfile.ClassFile;
@@ -16,7 +17,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 import net.sourceforge.pmd.lang.LanguageProcessorRegistry;
 import net.sourceforge.pmd.lang.ast.FileAnalysisException;
 import net.sourceforge.pmd.lang.ast.Parser.ParserTask;
@@ -196,7 +196,13 @@ public final class IospSources {
       }
       var names = new LinkedHashSet<String>();
       var packageName = unit.getPackageName().replace('.', '/');
-      requireBackendPackage(packageName, path, basePackage);
+      var topLevelNames =
+          path.getFileName().toString().equals("package-info.java")
+              ? List.of(ContextShape.PACKAGE_INFO)
+              : unit.getTypeDeclarations().toList().stream()
+                  .map(ASTTypeDeclaration::getSimpleName)
+                  .toList();
+      requireOwnership(packageName, topLevelNames, path, basePackage);
       if (!root.resolve(packageName).equals(path.getParent())) {
         throw unavailable(
             "source package does not match resource path: " + path + " (" + packageName + ")");
@@ -224,18 +230,24 @@ public final class IospSources {
     }
   }
 
-  private static void requireBackendPackage(String name, Path path, String basePackage) {
-    var prefix = basePackage.replace('.', '/') + "/";
-    if (!name.matches(Pattern.quote(prefix) + "(domain|persistence|infra)/[^/]+(?:/[^/]+)*")) {
-      throw unavailable(
-          "type is outside backend ownership root "
-              + basePackage
-              + ".<layer>.<domain>: "
-              + path
-              + " ("
-              + name
-              + ")");
-    }
+  private static void requireOwnership(
+      String internalPackage, List<String> topLevelTypes, Path path, String basePackage) {
+    var shape = ContextShape.of(basePackage);
+    var packageName = internalPackage.replace('/', '.');
+    shape
+        .ownershipViolation(packageName, topLevelTypes)
+        .ifPresent(
+            reason -> {
+              throw unavailable(
+                  "type is outside backend ownership root "
+                      + shape.description()
+                      + ": "
+                      + path
+                      + " ("
+                      + internalPackage
+                      + "); "
+                      + reason);
+            });
   }
 
   private static boolean annotationType(ASTAnnotation annotation, String qualified) {
@@ -369,8 +381,12 @@ public final class IospSources {
       for (var path : paths) {
         var model = readClass(parser, path);
         var name = model.thisClass().asInternalName();
-        requireBackendPackage(
-            name.substring(0, Math.max(0, name.lastIndexOf('/'))), path, basePackage);
+        var simple = name.substring(name.lastIndexOf('/') + 1);
+        requireOwnership(
+            name.substring(0, Math.max(0, name.lastIndexOf('/'))),
+            List.of(simple.contains("$") ? simple.substring(0, simple.indexOf('$')) : simple),
+            path,
+            basePackage);
         if (!classes.resolve(name + ".class").equals(path)) {
           throw unavailable(
               "compiled evidence has wrong type identity: " + path + " (" + name + ")");

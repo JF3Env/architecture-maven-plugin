@@ -9,7 +9,7 @@ public class ExceptionFactoryIospTest {
   void staticExceptionCreationDoesNotMixWithValidationOrDelegation() {
     this.assertClean(
         """
-        package com.ai.label.domain.probe;
+        package com.ai.label.probe.domain;
         class MissingException extends RuntimeException {
           private MissingException(String message) { super(message); }
           static MissingException of(String message) { return new MissingException(message); }
@@ -31,7 +31,7 @@ public class ExceptionFactoryIospTest {
   void compiledExceptionFactoriesAreAlsoPlumbing() {
     this.assertClean(
         """
-        package com.ai.label.domain.probe;
+        package com.ai.label.probe.domain;
         import io.github.jf3env.architecture.iosp.ExceptionFactoryIospTest.CompiledMissing;
         class Consumer {
           int validate(java.util.UUID id, int value) {
@@ -47,7 +47,7 @@ public class ExceptionFactoryIospTest {
     var report =
         IospAnalysis.analyzeSource(
             """
-        package com.ai.label.domain.probe;
+        package com.ai.label.probe.domain;
         import io.github.jf3env.architecture.iosp.ExceptionFactoryIospTest.CompiledProblem;
         class Consumer {
           int validate(int value) {
@@ -97,7 +97,7 @@ public class ExceptionFactoryIospTest {
     var report =
         IospAnalysis.analyzeSource(
             """
-        package com.ai.label.domain.probe;
+        package com.ai.label.probe.domain;
         class Problem extends RuntimeException {
           static Problem of(String message) { System.out.println(message); return new Problem(); }
         }
