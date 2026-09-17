@@ -48,6 +48,24 @@ class ConstructionRulesTest {
   }
 
   @Test
+  void ignoresTheSyntheticSwitchMapJavacEmitsForAnEnumSwitch() throws IOException {
+    assertTrue(
+        this.check(
+                """
+        enum Mode { ON, OFF }
+        public class Reader {
+          public int read(Mode mode) {
+            switch (mode) {
+              case ON: return 1;
+              default: return 0;
+            }
+          }
+        }
+        """)
+            .isEmpty());
+  }
+
+  @Test
   void rejectsSeveralConstructionOwners() throws IOException {
     assertEquals(
         List.of("fixtures.Product: several construction owners [fixtures.First, fixtures.Second]"),

@@ -208,7 +208,8 @@ Jackson runtime (`databind`, `core`) stays outside.
 
 The construction policy (`CONSTRUCTION_POLICY`) requires exactly one constructor and at most one
 construction owner per class. Records and enums are carriers constructed where they are consumed and are
-exempt. The factory-per-consumer, domain-product and per-domain-producer checks of `0.4.0` are retired.
+exempt, and so are the synthetic classes javac emits on its own (the `Outer$1` holder of an enum
+switch map has no constructor and no source). The factory-per-consumer, domain-product and per-domain-producer checks of `0.4.0` are retired.
 
 `DOMAIN_TYPES_ARE_CONSTRUCTED_BY_THEIR_DOMAIN` (since `1.1.0`) keeps the shape of an aggregate inside its
 context's domain: a constructor call, a constructor reference or a `builder()` call on a class of

@@ -2,6 +2,7 @@ package io.github.jf3env.architecture.bytecode;
 
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaModifier;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -23,7 +24,9 @@ import org.objectweb.asm.Opcodes;
  *
  * <p>Records and enums are the target architecture's carriers (commands, results, values, events)
  * and are constructed where they are consumed, so they are not subject to the ownership policy.
- * Interfaces, annotations and package metadata declare no construction.
+ * Interfaces, annotations and package metadata declare no construction, and neither do the
+ * synthetic classes javac emits on its own, such as the {@code Outer$1} holder of an enum switch
+ * map, which has no constructor and no source a consumer could change.
  */
 final class ConstructionRules {
   ConstructionRules() {}
@@ -36,6 +39,7 @@ final class ConstructionRules {
           || type.isAnnotation()
           || type.isEnum()
           || type.isRecord()
+          || type.getModifiers().contains(JavaModifier.SYNTHETIC)
           || type.getSimpleName().equals("package-info")) {
         continue;
       }
