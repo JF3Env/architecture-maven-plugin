@@ -83,6 +83,14 @@ public final class CheckMojo extends AbstractMojo {
                 + "; inspected "
                 + report.sourceFiles()
                 + " source files");
+    if (!report.advisories().isEmpty()) {
+      getLog()
+          .warn(
+              "Architecture pass-through advisories: "
+                  + report.advisories().size()
+                  + " candidate(s); review only, the build outcome is unaffected");
+      report.advisories().forEach(getLog()::warn);
+    }
     report.violations().forEach(getLog()::error);
     report.errors().forEach(getLog()::error);
     if (!report.errors().isEmpty()) {
@@ -138,10 +146,14 @@ public final class CheckMojo extends AbstractMojo {
         + report.sourceFiles()
         + "\nrules="
         + report.rules()
+        + "\nadvisories="
+        + report.advisories().size()
         + "\n"
         + String.join("\n", report.violations())
         + "\n"
         + String.join("\n", report.errors())
+        + "\n"
+        + String.join("\n", report.advisories())
         + "\n";
   }
 

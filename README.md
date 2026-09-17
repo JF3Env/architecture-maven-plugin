@@ -103,11 +103,31 @@ dependency JARs provide no additional application inputs.
 ### `check`
 
 Executes `RequireTypeImports`, `AvoidOptionalGet` and `DomainMethodsMustNotReturnNull` (the last two over
-every `<context>.domain..` package and the platform's), the `SOURCE_INVENTORY` scope rule, and the typed
+every `<context>.domain..` package and the platform's), the `SOURCE_INVENTORY` scope rule, the typed
 checker `AggregateInvariantSetter`, which restricts mutable state of classes annotated with the aggregate
-root marker to private validating setters with immediate rejecting guards. The goal reports four rule
-identities. Static factory methods, records and plain construction are idiomatic and not checked. Unknown
-evidence, PMD errors and suppressed violations fail the build.
+root marker to private validating setters with immediate rejecting guards, and the advisory collector
+`PassthroughFactsCollector`. The goal reports five rule identities. Static factory methods, records and
+plain construction are idiomatic and not checked. Unknown evidence, PMD errors and suppressed violations
+fail the build.
+
+#### Pass-through advisories (WARNING, since `1.1.0`)
+
+`PassthroughFactsCollector` records forwarding facts per method during the same analysis; once the
+traversal is over, the facts are classified into three signatures and reported as **advisories** at
+`WARNING`. They are written to the report as `advisories=<count>` followed by one
+`PASSTHROUGH_<kind>/<confidence> | <file>:<line> | <Class>.<method>: <detail> -> <suggestion>` line each,
+and they **never** change the outcome of the goal: `SourceReport.passed()` ignores them by construction.
+
+| Kind | Confidence | Signature |
+| --- | --- | --- |
+| `S1` | MEDIUM | single-use forwarder: a private, non-`@Override`, non-`@Produces` method whose whole body is one in-class delegating call, with exactly one in-class caller |
+| `S2` | MEDIUM | wrap-unwrap round trip: a method that only packages its arguments into a freshly constructed value object for a private, single-use method that reads them straight back through accessors |
+| `S3` | MEDIUM | forwarding chain: an intra-class path of at least two pure forwarders whose intermediates are each single-use; only the maximal chain is reported |
+
+Classification is deliberately conservative and reads sources alone: a pure forwarder is exactly one
+`return`/expression statement that calls the same class and allocates nothing. Confidence is MEDIUM
+because a single-use forwarder can be legitimate — IOSP forces an operation out of a coordination scope —
+so a finding means "review before inlining", not "must inline".
 
 ### `check-bytecode`
 

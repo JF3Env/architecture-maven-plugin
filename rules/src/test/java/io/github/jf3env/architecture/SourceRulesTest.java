@@ -46,8 +46,29 @@ class SourceRulesTest {
             "AvoidOptionalGet",
             "DomainMethodsMustNotReturnNull",
             "RequireTypeImports",
-            "AggregateInvariantSetter"),
+            "AggregateInvariantSetter",
+            "PassthroughFactsCollector"),
         Set.copyOf(result.rules()));
+    assertEquals(List.of(), result.advisories());
+  }
+
+  @Test
+  void passthroughAdvisoriesAreReportedWithoutAffectingTheOutcome() throws Exception {
+    compile(
+        "com.acme.orders.domain",
+        "int entry(int value) { return helper(value) + 1; }"
+            + " private int helper(int value) { return target(value); }"
+            + " int target(int value) { return value; }");
+    var report = analyze("com.acme");
+    assertEquals(Set.of(), findings(report));
+    assertTrue(report.passed(), report.toString());
+    assertEquals(1, report.advisories().size(), report.advisories().toString());
+    assertTrue(
+        report.advisories().get(0).startsWith("PASSTHROUGH_S1/MEDIUM | "),
+        report.advisories().toString());
+    assertTrue(
+        report.advisories().get(0).contains("Fixture.helper: single-use forwarder"),
+        report.advisories().toString());
   }
 
   @ParameterizedTest

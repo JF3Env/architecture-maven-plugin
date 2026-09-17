@@ -157,3 +157,29 @@ tests, Error Prone/NullAway, coverage, mutation, metrics or formatting. Those ga
 The initial compatibility target is Maven 3.9.16 and JDK 24. The full architecture policy targets a
 complete domain/persistence/infra application in one module. Cross-module ownership and additional
 Java versions require separate integration proofs. A parent POM is not required for consumption.
+
+## 1.1.0 — pass-through advisories
+
+`1.1.0` adds one contract to `check` and changes no outcome. `PassthroughFactsCollector` is a fact
+collector, not a gate: it runs inside the same PMD analysis, records per-method forwarding facts and
+in-class call sites, and its state is read once the traversal is over — the same post-execution pattern
+as the `SOURCE_INVENTORY` scope rule's visited count. `PassthroughAnalyzer` then classifies the facts
+into the S1 (single-use forwarder), S2 (wrap-unwrap round trip) and S3 (forwarding chain) signatures
+described in the README.
+
+The findings are carried by a new `SourceReport.advisories()` component and printed by `check` at
+`WARNING`, preceded by their count. `SourceReport.passed()` deliberately ignores the component, and a
+four-argument constructor keeps every producer that has no advisories — `IospRules` — unchanged. The
+consumer fixture `passthrough` proves the end-to-end contract: an S1 candidate is logged at `WARNING`,
+written to `source-report.txt`, and the goal still approves the module.
+
+The detector is imported from the reference project's standalone `PassthroughGate`, whose `main()` ran
+its own PMD analysis and printed a ranking. That role now belongs to the Mojo, so only the rule, the
+analyzer and the finding record crossed over; identity, severity, scope and the S1/S2/S3 classification
+semantics are unchanged. Two adaptations were required to leave the reference project's context:
+`ASTVariableAccess.getImage()` became the equivalent non-deprecated `getName()` so the library compiles
+under `failOnWarning`, and the per-file grouping key is the file identifier's absolute path rather than
+its `toString()`, so an advisory reads exactly like a violation diagnostic. The collector's rule name is
+published as `PassthroughRule.NAME` so the goal can report the executed identity. No package name was
+hard-coded in the original heuristic, so nothing had to be generalized: the only qualified name it knows
+is `jakarta.enterprise.inject.Produces`.
