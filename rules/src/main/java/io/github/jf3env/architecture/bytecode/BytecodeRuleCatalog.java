@@ -502,53 +502,42 @@ public final class BytecodeRuleCatalog {
   /**
    * A context's domain owns the shape of its types: only that domain calls their constructors,
    * constructor references and {@code builder()} entry points. Records and enums are carriers
-   * constructed where they are consumed. The composition root instantiates the domain's services,
-   * policies and factories through their constructors, but never assembles a domain product through
-   * a builder. A generated MapStruct implementation may rebuild a product through its builder.
+   * constructed where they are consumed. The composition root is exempt: it produces the long-lived
+   * collaborators of a context, the domain's services, policies and factories among them, whichever
+   * way those are built. A generated MapStruct implementation may rebuild a product through its
+   * builder.
    */
   private ArchCondition<JavaClass> constructDomainTypesOnlyInsideTheirDomain() {
     var generated = mapstructGeneratedMapperImpl();
     return new ArchCondition<>(
         "construct the types of a context's domain only inside that domain,"
-            + " constructor calls from infrastructure.wiring excepted") {
+            + " the composition root infrastructure.wiring excepted") {
       @Override
       public void check(JavaClass origin, ConditionEvents events) {
-        if (generated.test(origin)) return;
+        if (generated.test(origin) || shape.isWiringPackage(origin.getPackageName())) return;
         origin
             .getConstructorCallsFromSelf()
-            .forEach(
-                call -> judge(origin, call.getTargetOwner(), call.getDescription(), true, events));
+            .forEach(call -> judge(origin, call.getTargetOwner(), call.getDescription(), events));
         origin
             .getConstructorReferencesFromSelf()
             .forEach(
                 reference ->
-                    judge(
-                        origin,
-                        reference.getTargetOwner(),
-                        reference.getDescription(),
-                        true,
-                        events));
+                    judge(origin, reference.getTargetOwner(), reference.getDescription(), events));
         origin.getMethodCallsFromSelf().stream()
             .filter(call -> call.getTarget().getName().equals("builder"))
             .filter(call -> call.getTarget().getRawParameterTypes().isEmpty())
-            .forEach(
-                call -> judge(origin, call.getTargetOwner(), call.getDescription(), false, events));
+            .forEach(call -> judge(origin, call.getTargetOwner(), call.getDescription(), events));
       }
 
       private void judge(
-          JavaClass origin,
-          JavaClass product,
-          String description,
-          boolean constructor,
-          ConditionEvents events) {
+          JavaClass origin, JavaClass product, String description, ConditionEvents events) {
         var home = product.getPackageName();
         if (!shape.isDomainPackage(home) || shape.isPlatformPackage(home)) return;
         if (product.isRecord() || product.isEnum()) return;
         var inside =
             shape.isDomainPackage(origin.getPackageName())
                 && shape.segmentOf(origin.getPackageName()).equals(shape.segmentOf(home));
-        var composed = constructor && shape.isWiringPackage(origin.getPackageName());
-        if (!inside && !composed) {
+        if (!inside) {
           events.add(
               SimpleConditionEvent.violated(
                   origin,

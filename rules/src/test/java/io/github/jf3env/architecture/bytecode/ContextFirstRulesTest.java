@@ -564,6 +564,10 @@ class ContextFirstRulesTest {
                     + "(); } public Object order() { return "
                     + ORDER
                     + ".builder().build(); } }",
+                BASE + ".orders.infrastructure.outbound.persistence.OrderAdapter",
+                "public class OrderAdapter { public Object order() { return "
+                    + ORDER
+                    + ".builder().build(); } }",
                 invoice,
                 "public class InvoicePolicy { public Object order() { return new "
                     + policy
@@ -574,7 +578,7 @@ class ContextFirstRulesTest {
         "PlaceOrderHandler.built()",
         "PlaceOrderHandler.referenced()",
         "PlaceOrderHandler.assembled()",
-        "OrdersProducer.order()",
+        "OrderAdapter.order()",
         "InvoicePolicy.order()",
         "call a factory published by orders.domain");
   }
