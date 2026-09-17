@@ -4,6 +4,9 @@ import io.github.jf3env.architecture.source.TypedSourceRuleCatalog;
 import io.github.jf3env.architecture.source.passthrough.PassthroughAnalyzer;
 import io.github.jf3env.architecture.source.passthrough.PassthroughFinding;
 import io.github.jf3env.architecture.source.passthrough.PassthroughRule;
+import io.github.jf3env.architecture.source.placement.PlacementAnalyzer;
+import io.github.jf3env.architecture.source.placement.PlacementFinding;
+import io.github.jf3env.architecture.source.placement.PlacementRule;
 import java.io.IOException;
 import java.lang.classfile.ClassFile;
 import java.net.URL;
@@ -12,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.TreeSet;
 import net.sourceforge.pmd.PMDConfiguration;
 import net.sourceforge.pmd.PmdAnalysis;
@@ -40,24 +44,27 @@ public final class SourceRules {
       var scope = new SourceScopeRule(request);
       var typed = TypedSourceRuleCatalog.load(request.aggregateRootAnnotation());
       var passthrough = new PassthroughRule();
+      var placement = new PlacementRule();
       try (var analysis = PmdAnalysis.create(configuration)) {
         sets.forEach(analysis::addRuleSet);
         analysis.addRuleSet(RuleSet.forSingleRule(scope));
         analysis.addRuleSet(RuleSet.forSingleRule(passthrough));
+        analysis.addRuleSet(RuleSet.forSingleRule(placement));
         typed.forEach(rule -> analysis.addRuleSet(RuleSet.forSingleRule(rule)));
         sources.forEach(path -> analysis.files().addFile(path));
         var report = analysis.performAnalysisAndCollectReport();
         var identities = new ArrayList<>(catalog.identities(sets));
         typed.forEach(rule -> identities.add(rule.getName()));
         identities.add(PassthroughRule.NAME);
-        // The collector reports nothing itself; its facts are analyzed once the traversal is over,
-        // exactly like the scope rule's visited count.
+        identities.add(PlacementRule.NAME);
+        // The collectors report nothing themselves; their facts are analyzed once the traversal is
+        // over, exactly like the scope rule's visited count.
         return result(
             report,
             sources.size(),
             scope.visited(),
             List.copyOf(identities),
-            advisories(passthrough));
+            advisories(passthrough, placement));
       }
     }
   }
@@ -125,13 +132,18 @@ public final class SourceRules {
   }
 
   /**
-   * Pass-through findings are advisories: they describe a forwarding smell, never a violated
-   * contract, so they are collected after the analysis and kept out of the outcome.
+   * Pass-through and type-placement findings are advisories: they describe a smell, never a
+   * violated contract, so they are collected after the analysis and kept out of the outcome.
    */
-  private List<String> advisories(PassthroughRule passthrough) {
-    return PassthroughAnalyzer.analyze(passthrough.methods(), passthrough.calls()).stream()
+  private List<String> advisories(PassthroughRule passthrough, PlacementRule placement) {
+    var advisories = new ArrayList<String>();
+    PassthroughAnalyzer.analyze(passthrough.methods(), passthrough.calls()).stream()
         .map(this::advisory)
-        .toList();
+        .forEach(advisories::add);
+    PlacementAnalyzer.analyze(placement.types(), placement.packages()).stream()
+        .map(this::advisory)
+        .forEach(advisories::add);
+    return List.copyOf(advisories);
   }
 
   private String advisory(PassthroughFinding finding) {
@@ -147,6 +159,23 @@ public final class SourceRules {
         + finding.className()
         + "."
         + finding.method()
+        + ": "
+        + finding.detail()
+        + " -> "
+        + finding.suggestion();
+  }
+
+  private String advisory(PlacementFinding finding) {
+    return "PLACEMENT_"
+        + finding.role().toUpperCase(Locale.ROOT)
+        + "/"
+        + finding.confidence()
+        + " | "
+        + finding.file()
+        + ":"
+        + finding.line()
+        + " | "
+        + finding.typeName()
         + ": "
         + finding.detail()
         + " -> "

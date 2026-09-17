@@ -1,0 +1,29 @@
+import java.nio.file.Files;
+String report = Files.readString(new File(basedir, "target/architecture/source-report.txt").toPath());
+if (!report.startsWith("PASSED\n")) {
+    throw new IllegalStateException("A placement advisory must never fail the goal: " + report);
+}
+if (!report.contains("advisories=1") || !report.contains("PLACEMENT_FACTORY/MEDIUM | ")) {
+    throw new IllegalStateException("Expected exactly one reported placement advisory: " + report);
+}
+if (!report.contains("OrderReconstruction: misplaced type")
+        || !report.contains("git mv to consumer/example/orders/domain/factory")) {
+    throw new IllegalStateException("Expected the misplaced type and its move to be named: " + report);
+}
+if (report.contains("PriceValue")) {
+    throw new IllegalStateException("A role folder that does not exist must calibrate nothing: " + report);
+}
+if (report.contains("PLACEMENT_MAPPERS") || report.contains("ExceptionMapper")) {
+    throw new IllegalStateException("A JAX-RS provider must never be moved into mappers: " + report);
+}
+if (!report.contains("TypePlacementFactsCollector")) {
+    throw new IllegalStateException("The executed advisory contract must be reported: " + report);
+}
+String log = Files.readString(new File(basedir, "build.log").toPath());
+if (!log.contains("[WARNING] PLACEMENT_FACTORY/MEDIUM | ")) {
+    throw new IllegalStateException("The advisory must be logged at WARNING: " + log);
+}
+if (!log.contains("Architecture source contracts passed")) {
+    throw new IllegalStateException("The goal must still approve the module: " + log);
+}
+return true;

@@ -47,7 +47,8 @@ class SourceRulesTest {
             "DomainMethodsMustNotReturnNull",
             "RequireTypeImports",
             "AggregateInvariantSetter",
-            "PassthroughFactsCollector"),
+            "PassthroughFactsCollector",
+            "TypePlacementFactsCollector"),
         Set.copyOf(result.rules()));
     assertEquals(List.of(), result.advisories());
   }
@@ -68,6 +69,29 @@ class SourceRulesTest {
         report.advisories().toString());
     assertTrue(
         report.advisories().get(0).contains("Fixture.helper: single-use forwarder"),
+        report.advisories().toString());
+  }
+
+  @Test
+  void placementAdvisoriesAreReportedWithoutAffectingTheOutcome() throws Exception {
+    compile("com.acme.orders.domain", "int value() { return 1; }");
+    declare("com.acme.orders.domain", "OrderReconstruction");
+    declare("com.acme.orders.domain.factory", "OrderFactory");
+    var report = analyze("com.acme");
+    assertEquals(Set.of(), findings(report));
+    assertTrue(report.passed(), report.toString());
+    assertEquals(1, report.advisories().size(), report.advisories().toString());
+    assertTrue(
+        report.advisories().get(0).startsWith("PLACEMENT_FACTORY/MEDIUM | "),
+        report.advisories().toString());
+    assertTrue(
+        report
+            .advisories()
+            .get(0)
+            .contains("OrderReconstruction: misplaced type: OrderReconstruction is declared in"),
+        report.advisories().toString());
+    assertTrue(
+        report.advisories().get(0).contains("git mv to com/acme/orders/domain/factory"),
         report.advisories().toString());
   }
 
@@ -371,6 +395,13 @@ class SourceRulesTest {
         "package " + name + "; import java.util.Optional; class Fixture { " + members + "\n}");
     compileFile(file);
     return file;
+  }
+
+  private void declare(String name, String type) throws IOException {
+    var file = sources.resolve(name.replace('.', '/') + "/" + type + ".java");
+    Files.createDirectories(file.getParent());
+    Files.writeString(file, "package " + name + "; class " + type + " {}");
+    compileFile(file);
   }
 
   private void compileFile(Path file) {
