@@ -103,11 +103,79 @@ dependency JARs provide no additional application inputs.
 ### `check`
 
 Executes `RequireTypeImports`, `AvoidOptionalGet` and `DomainMethodsMustNotReturnNull` (the last two over
-every `<context>.domain..` package and the platform's), the `SOURCE_INVENTORY` scope rule, and the typed
+every `<context>.domain..` package and the platform's), the `SOURCE_INVENTORY` scope rule, the typed
 checker `AggregateInvariantSetter`, which restricts mutable state of classes annotated with the aggregate
-root marker to private validating setters with immediate rejecting guards. The goal reports four rule
-identities. Static factory methods, records and plain construction are idiomatic and not checked. Unknown
-evidence, PMD errors and suppressed violations fail the build.
+root marker to private validating setters with immediate rejecting guards, and the advisory collectors
+`PassthroughFactsCollector` and `TypePlacementFactsCollector`. The goal reports six rule identities.
+Static factory methods, records and plain construction are idiomatic and not checked. Unknown evidence,
+PMD errors and suppressed violations fail the build.
+
+#### Pass-through advisories (WARNING, since `1.1.0`)
+
+`PassthroughFactsCollector` records forwarding facts per method during the same analysis; once the
+traversal is over, the facts are classified into three signatures and reported as **advisories** at
+`WARNING`. They are written to the report as `advisories=<count>` followed by one
+`PASSTHROUGH_<kind>/<confidence> | <file>:<line> | <Class>.<method>: <detail> -> <suggestion>` line each,
+and they **never** change the outcome of the goal: `SourceReport.passed()` ignores them by construction.
+
+| Kind | Confidence | Signature |
+| --- | --- | --- |
+| `S1` | MEDIUM | single-use forwarder: a private, non-`@Override`, non-`@Produces` method whose whole body is one in-class delegating call, with exactly one in-class caller |
+| `S2` | MEDIUM | wrap-unwrap round trip: a method that only packages its arguments into a freshly constructed value object for a private, single-use method that reads them straight back through accessors |
+| `S3` | MEDIUM | forwarding chain: an intra-class path of at least two pure forwarders whose intermediates are each single-use; only the maximal chain is reported |
+
+Classification is deliberately conservative and reads sources alone: a pure forwarder is exactly one
+`return`/expression statement that calls the same class and allocates nothing. Confidence is MEDIUM
+because a single-use forwarder can be legitimate — IOSP forces an operation out of a coordination scope —
+so a finding means "review before inlining", not "must inline".
+
+#### Type-placement advisories (WARNING, since `1.1.0`)
+
+`TypePlacementFactsCollector` records the declared package of every compilation unit and one fact per
+top-level type; once the traversal is over, a type whose name announces a role is checked against the
+folder it is declared in. Findings are reported as **advisories** at `WARNING`, one
+`PLACEMENT_<ROLE>/MEDIUM | <file>:<line> | <Type>: <detail> -> <suggestion>` line each, and they
+**never** change the outcome of the goal: `SourceReport.passed()` ignores them by construction.
+
+The role vocabulary is the folder set `command`, `query`, `result`, `value`, `exceptions`, `factory`,
+`mappers`, `dto`, `entities`, `projection`. A name suffix maps to a role — the longest match wins:
+
+| Suffix | Role folder |
+| --- | --- |
+| `*Factory`, `*Reconstruction` | `factory` |
+| `*Exception` | `exceptions` |
+| `*Result` | `result` |
+| `*Projection` | `projection` |
+| `*Command` | `command` |
+| `*Query` | `query` |
+| `*Mapper` | `mappers` |
+| `*Value` | `value` |
+
+**The detector is self-calibrating and imposes nothing.** A finding requires evidence that the
+convention is already in use at that exact point of the tree: the expected role package must already
+exist, that is, some analyzed source must declare it. If `value` does not exist next to the type, a
+`*Value` in the enclosing folder is not a finding; a `value` folder elsewhere in the tree calibrates
+nothing. The expected package is a child of the declaring package (`orders` → `orders.factory`) unless
+the declaring package is itself a role folder, in which case it is its sibling (`orders.value` →
+`orders.factory`). Package metadata, nested types, test sources, a name that is only the role itself,
+and a type already in its role folder are never reported.
+
+**JAX-RS exception providers are excluded from `mappers`.** A `mappers` folder holds mapping
+collaborators — in practice MapStruct mappers — and a type implementing
+`jakarta.ws.rs.ext.ExceptionMapper` is not one, so suggesting it move there would be an incorrect
+change. Two source-only signals exclude such a type, and either one alone is enough: the declaration's
+`implements` clause names a type whose simple name is `ExceptionMapper`, which catches
+`class Foo implements ExceptionMapper<Bar>` even when `Foo` does not end in `Mapper`; or the type's own
+simple name ends in `ExceptionMapper`, which catches the case where the interface arrives through a
+hierarchy the source does not show. Matching is on the simple name because there is no type resolution
+here. The exclusion is scoped to `mappers`: `Mapper` is the longest matching suffix of any
+`*ExceptionMapper` name, so no other role is affected. This is the same concession the pass-through
+detector makes by knowing `jakarta.enterprise.inject.Produces`.
+
+`enum` and `record` are classified by name suffix like every other type and never by declaration kind:
+no source-only criterion separates a value `enum` from a state `enum`, or a bodyless `record` from a
+DTO, a projection or a transport shape, so a kind-based rule would report types whose folder is already
+correct. Under-reporting is the intended failure mode of an advisory.
 
 ### `check-bytecode`
 

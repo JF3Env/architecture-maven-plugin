@@ -1,0 +1,22 @@
+import java.nio.file.Files;
+String report = Files.readString(new File(basedir, "target/architecture/source-report.txt").toPath());
+if (!report.startsWith("PASSED\n")) {
+    throw new IllegalStateException("A pass-through advisory must never fail the goal: " + report);
+}
+if (!report.contains("advisories=1") || !report.contains("PASSTHROUGH_S1/MEDIUM | ")) {
+    throw new IllegalStateException("Expected one reported pass-through advisory: " + report);
+}
+if (!report.contains("Forwarding.render: single-use forwarder")) {
+    throw new IllegalStateException("Expected the single-use forwarder to be named: " + report);
+}
+if (!report.contains("PassthroughFactsCollector")) {
+    throw new IllegalStateException("The executed advisory contract must be reported: " + report);
+}
+String log = Files.readString(new File(basedir, "build.log").toPath());
+if (!log.contains("[WARNING] PASSTHROUGH_S1/MEDIUM | ")) {
+    throw new IllegalStateException("The advisory must be logged at WARNING: " + log);
+}
+if (!log.contains("Architecture source contracts passed")) {
+    throw new IllegalStateException("The goal must still approve the module: " + log);
+}
+return true;

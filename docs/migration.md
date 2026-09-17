@@ -157,3 +157,74 @@ tests, Error Prone/NullAway, coverage, mutation, metrics or formatting. Those ga
 The initial compatibility target is Maven 3.9.16 and JDK 24. The full architecture policy targets a
 complete domain/persistence/infra application in one module. Cross-module ownership and additional
 Java versions require separate integration proofs. A parent POM is not required for consumption.
+
+## 1.1.0 — pass-through advisories
+
+`1.1.0` adds one contract to `check` and changes no outcome. `PassthroughFactsCollector` is a fact
+collector, not a gate: it runs inside the same PMD analysis, records per-method forwarding facts and
+in-class call sites, and its state is read once the traversal is over — the same post-execution pattern
+as the `SOURCE_INVENTORY` scope rule's visited count. `PassthroughAnalyzer` then classifies the facts
+into the S1 (single-use forwarder), S2 (wrap-unwrap round trip) and S3 (forwarding chain) signatures
+described in the README.
+
+The findings are carried by a new `SourceReport.advisories()` component and printed by `check` at
+`WARNING`, preceded by their count. `SourceReport.passed()` deliberately ignores the component, and a
+four-argument constructor keeps every producer that has no advisories — `IospRules` — unchanged. The
+consumer fixture `passthrough` proves the end-to-end contract: an S1 candidate is logged at `WARNING`,
+written to `source-report.txt`, and the goal still approves the module.
+
+The detector is imported from the reference project's standalone `PassthroughGate`, whose `main()` ran
+its own PMD analysis and printed a ranking. That role now belongs to the Mojo, so only the rule, the
+analyzer and the finding record crossed over; identity, severity, scope and the S1/S2/S3 classification
+semantics are unchanged. Two adaptations were required to leave the reference project's context:
+`ASTVariableAccess.getImage()` became the equivalent non-deprecated `getName()` so the library compiles
+under `failOnWarning`, and the per-file grouping key is the file identifier's absolute path rather than
+its `toString()`, so an advisory reads exactly like a violation diagnostic. The collector's rule name is
+published as `PassthroughRule.NAME` so the goal can report the executed identity. No package name was
+hard-coded in the original heuristic, so nothing had to be generalized: the only qualified name it knows
+is `jakarta.enterprise.inject.Produces`.
+
+## 1.1.0 — type-placement advisories
+
+`1.1.0` adds a second advisory contract to `check` and, again, changes no outcome.
+`TypePlacementFactsCollector` follows the same shape as the pass-through collector: it runs inside the
+same PMD analysis, records the declared package of every compilation unit plus one fact per top-level
+type, and its state is read once the traversal is over. `PlacementAnalyzer` then reports a type whose
+name announces a role folder — `factory`, `exceptions`, `result`, `projection`, `command`, `query`,
+`mappers`, `value` — while being declared outside it. The goal now reports six rule identities, and the
+findings join `SourceReport.advisories()`, which `passed()` still ignores by construction.
+
+The contract comes from the consumer template's role vocabulary, so the interesting migration decision
+was how to execute a convention this library must not impose. A consumer that never adopted the role
+folders would otherwise be flooded by a rule it never agreed to. The detector is therefore
+self-calibrating: a finding requires the expected role package to already exist at that point of the
+tree, proved by an analyzed source declaring it. Existence is read from the analyzed sources rather than
+from the filesystem, so an empty directory nobody adopted calibrates nothing, and a role folder in
+another part of the tree calibrates nothing either.
+
+Running the detector against a 897-file consumer exposed the other way a name-suffix rule can be wrong:
+of ten `PLACEMENT_MAPPERS` findings, eight were JAX-RS providers — `DomainExceptionMapper`,
+`LabelNotFoundExceptionMapper` and friends — implementing `jakarta.ws.rs.ext.ExceptionMapper` while the
+`mappers` folder of that code base holds MapStruct mappers. The suffix was right and the conclusion was
+wrong: the suggested move would have broken the inbound REST adapter. Suggesting an incorrect change is
+strictly worse than reporting nothing, so `1.1.0` excludes those providers from the `mappers` role using
+the two signals a source-only analysis has, either of which is conclusive on its own: the `implements`
+clause naming a type whose simple name is `ExceptionMapper`, and a type name ending in
+`ExceptionMapper`. The first catches the provider whose own name does not end in `Mapper`; the second
+catches the provider whose contract arrives through a hierarchy the source does not show. Hardcoding one
+framework name is the concession the pass-through detector already made for
+`jakarta.enterprise.inject.Produces`. Because `Mapper` is the longest matching suffix of any
+`*ExceptionMapper` name, no other role could be reached by these names and none is affected.
+
+Only the name-suffix mapping crossed over. Classifying `enum` and `record` by declaration kind was
+considered and rejected: no source-only criterion separates a value `enum` from a state `enum`, or a
+bodyless `record` from a DTO, a projection or a transport shape, so a kind-based rule would report types
+whose folder is already correct. An advisory that cries wolf is worse than one that stays quiet, so both
+kinds are classified by their name suffix like every other type. Package metadata, nested types, test
+sources, a name that is only the role itself, and a type already in its role folder are never reported.
+
+The consumer fixture `placement` proves the end-to-end contract: a `*Reconstruction` port declared beside
+an adopted `factory` folder is logged at `WARNING` and written to `source-report.txt` with its `git mv`
+target, a `*Value` type with no `value` folder next to it is not reported at all, an
+`*ExceptionMapper` provider declared next to an adopted `mappers` folder is not reported either, and the
+goal still approves the module.
