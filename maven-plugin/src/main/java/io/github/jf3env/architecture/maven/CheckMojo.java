@@ -86,7 +86,7 @@ public final class CheckMojo extends AbstractMojo {
     if (!report.advisories().isEmpty()) {
       getLog()
           .warn(
-              "Architecture pass-through advisories: "
+              "Architecture advisories: "
                   + report.advisories().size()
                   + " candidate(s); review only, the build outcome is unaffected");
       report.advisories().forEach(getLog()::warn);
