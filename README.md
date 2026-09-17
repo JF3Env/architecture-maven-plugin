@@ -213,8 +213,8 @@ switch map has no constructor and no source). The factory-per-consumer, domain-p
 
 `DOMAIN_TYPES_ARE_CONSTRUCTED_BY_THEIR_DOMAIN` (since `1.1.0`) keeps the shape of an aggregate inside its
 context's domain: a constructor call, a constructor reference or a `builder()` call on a class of
-`<context>.domain..` is accepted only from that same domain. Records and enums are carriers and exempt, the
-composition root is exempt because it produces a context's long-lived collaborators whichever way they are
+`<context>.domain..` is accepted only from that same domain. Records and enums are carriers and exempt, and so is a domain `command` role package, whose types are the
+input the domain declares for its callers. The composition root is exempt because it produces a context's long-lived collaborators whichever way they are
 built, and a generated MapStruct implementation may rebuild a product through its builder. An outer layer that needs a domain product calls a factory the domain
 publishes.
 

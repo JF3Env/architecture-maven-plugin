@@ -519,6 +519,8 @@ class ContextFirstRulesTest {
                 order,
                 line,
                 "public record OrderLine(long quantity) {}",
+                BASE + ".orders.domain.command.PlaceOrderCommand",
+                "public class PlaceOrderCommand {}",
                 factory,
                 "public class OrderFactory { public Order create() { return Order.builder().build(); } }",
                 PLACE_ORDER,
@@ -526,7 +528,9 @@ class ContextFirstRulesTest {
                     + factory
                     + " orders) { orders.create(); return new "
                     + line
-                    + "(1); } }",
+                    + "(1); } public Object command() { return new "
+                    + BASE
+                    + ".orders.domain.command.PlaceOrderCommand(); } }",
                 producer,
                 "public class OrdersProducer { public "
                     + factory

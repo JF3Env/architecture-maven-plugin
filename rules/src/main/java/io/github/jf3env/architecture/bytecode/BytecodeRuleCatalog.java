@@ -502,10 +502,11 @@ public final class BytecodeRuleCatalog {
   /**
    * A context's domain owns the shape of its types: only that domain calls their constructors,
    * constructor references and {@code builder()} entry points. Records and enums are carriers
-   * constructed where they are consumed. The composition root is exempt: it produces the long-lived
-   * collaborators of a context, the domain's services, policies and factories among them, whichever
-   * way those are built. A generated MapStruct implementation may rebuild a product through its
-   * builder.
+   * constructed where they are consumed, and so is everything in a domain {@code command} role
+   * package: a command is the input the domain declares for its callers. The composition root is
+   * exempt: it produces the long-lived collaborators of a context, the domain's services, policies
+   * and factories among them, whichever way those are built. A generated MapStruct implementation
+   * may rebuild a product through its builder.
    */
   private ArchCondition<JavaClass> constructDomainTypesOnlyInsideTheirDomain() {
     var generated = mapstructGeneratedMapperImpl();
@@ -533,7 +534,7 @@ public final class BytecodeRuleCatalog {
           JavaClass origin, JavaClass product, String description, ConditionEvents events) {
         var home = product.getPackageName();
         if (!shape.isDomainPackage(home) || shape.isPlatformPackage(home)) return;
-        if (product.isRecord() || product.isEnum()) return;
+        if (product.isRecord() || product.isEnum() || isCommand(home)) return;
         var inside =
             shape.isDomainPackage(origin.getPackageName())
                 && shape.segmentOf(origin.getPackageName()).equals(shape.segmentOf(home));
@@ -549,6 +550,13 @@ public final class BytecodeRuleCatalog {
         }
       }
     };
+  }
+
+  /**
+   * {@code <base>.<context>.domain..command..}: the role package of the inputs a domain declares.
+   */
+  private static boolean isCommand(String packageName) {
+    return packageName.endsWith(".command") || packageName.contains(".command.");
   }
 
   private static boolean hasProducedBeans(JavaClass type) {
