@@ -34,7 +34,7 @@ that is why the PRs are open rather than merged.
 
 ## 3. What 1.0.0 does
 
-- `check-bytecode`: 34 context-first identities (the Fase 7 suite of the sat-label plan plus the structural
+- `check-bytecode`: 35 context-first identities (the Fase 7 suite of the sat-label plan plus the structural
   rules the plan marks MANTER) over `<base>.<context>.{api,domain,application,infrastructure}` and a shared
   `<base>.<platform>`. Contexts are derived from the compiled inventory; only the platform marker types are
   configurable (`aggregateRootAnnotation`, `unitOfWorkType`, `integrationEventType`, defaults below

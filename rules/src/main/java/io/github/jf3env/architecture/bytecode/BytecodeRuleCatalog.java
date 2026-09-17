@@ -274,6 +274,12 @@ public final class BytecodeRuleCatalog {
             .should()
             .beFinal());
     rules.add(
+        "DOMAIN_TYPES_ARE_CONSTRUCTED_BY_THEIR_DOMAIN",
+        classes()
+            .that()
+            .resideInAPackage(base + "..")
+            .should(constructDomainTypesOnlyInsideTheirDomain()));
+    rules.add(
         "TRANSFER_OBJECT_PACKAGES_CONTAIN_ONLY_TRANSFER_OBJECTS",
         classes()
             .that()
@@ -488,6 +494,69 @@ public final class BytecodeRuleCatalog {
                             + found));
               }
             });
+      }
+    };
+  }
+
+  /**
+   * A context's domain owns the shape of its types: only that domain calls their constructors,
+   * constructor references and {@code builder()} entry points. Records and enums are carriers
+   * constructed where they are consumed. The composition root instantiates the domain's services,
+   * policies and factories through their constructors, but never assembles a domain product through
+   * a builder. A generated MapStruct implementation may rebuild a product through its builder.
+   */
+  private ArchCondition<JavaClass> constructDomainTypesOnlyInsideTheirDomain() {
+    var generated = mapstructGeneratedMapperImpl();
+    return new ArchCondition<>(
+        "construct the types of a context's domain only inside that domain,"
+            + " constructor calls from infrastructure.wiring excepted") {
+      @Override
+      public void check(JavaClass origin, ConditionEvents events) {
+        if (generated.test(origin)) return;
+        origin
+            .getConstructorCallsFromSelf()
+            .forEach(
+                call -> judge(origin, call.getTargetOwner(), call.getDescription(), true, events));
+        origin
+            .getConstructorReferencesFromSelf()
+            .forEach(
+                reference ->
+                    judge(
+                        origin,
+                        reference.getTargetOwner(),
+                        reference.getDescription(),
+                        true,
+                        events));
+        origin.getMethodCallsFromSelf().stream()
+            .filter(call -> call.getTarget().getName().equals("builder"))
+            .filter(call -> call.getTarget().getRawParameterTypes().isEmpty())
+            .forEach(
+                call -> judge(origin, call.getTargetOwner(), call.getDescription(), false, events));
+      }
+
+      private void judge(
+          JavaClass origin,
+          JavaClass product,
+          String description,
+          boolean constructor,
+          ConditionEvents events) {
+        var home = product.getPackageName();
+        if (!shape.isDomainPackage(home) || shape.isPlatformPackage(home)) return;
+        if (product.isRecord() || product.isEnum()) return;
+        var inside =
+            shape.isDomainPackage(origin.getPackageName())
+                && shape.segmentOf(origin.getPackageName()).equals(shape.segmentOf(home));
+        var composed = constructor && shape.isWiringPackage(origin.getPackageName());
+        if (!inside && !composed) {
+          events.add(
+              SimpleConditionEvent.violated(
+                  origin,
+                  description
+                      + ": "
+                      + product.getName()
+                      + " is constructed outside its domain; call a factory published by "
+                      + shape.segmentOf(home).map(segment -> segment + ".domain").orElse(home)));
+        }
       }
     };
   }

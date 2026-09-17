@@ -3,7 +3,7 @@
 Reusable validation extracted incrementally from [java-ai-template](https://github.com/JF3Env/java-ai-template).
 Since `1.0.0` the plugin enforces a **context-first** backend: packages by bounded context, four layers
 per context, a small shared platform. It packages the source rules, the aggregate-invariant checker, the
-34-rule ArchUnit catalog with its construction policy, and the IOSP structural analysis, executing them
+35-rule ArchUnit catalog with its construction policy, and the IOSP structural analysis, executing them
 independently of Surefire selection. `0.4.0` is the last version of the previous *layer-first* contract.
 The [migration contract](docs/migration.md) records every slice and its evidence.
 
@@ -188,14 +188,14 @@ may live in any package. Every required identity must select at least one class:
 an analysis error, never an approval. Resolution cannot be disabled or replaced through ArchUnit
 configuration, and the analyzer preserves its caller's context classloader and configuration.
 
-The 34 identities, each with a compiled counterexample in the library's tests:
+The 35 identities, each with a compiled counterexample in the library's tests:
 
 | Group | Identities |
 | --- | --- |
 | Shape | `CLASSES_RESIDE_IN_CONTEXT_SHAPE`, `CONTEXTS_ONLY_TALK_THROUGH_API`, `CONTEXTS_ARE_FREE_OF_CYCLES`, `LAYERS_POINT_INWARD`, `PLATFORM_DEPENDS_ON_NO_CONTEXT` |
 | Published language | `API_IS_A_PUBLISHED_LANGUAGE`, `INTEGRATION_EVENTS_ARE_PUBLIC_RECORDS` |
 | Layer ownership | `DOMAIN_IS_FRAMEWORK_FREE`, `TRANSACTIONS_BELONG_TO_APPLICATION`, `PERSISTENCE_IS_THE_ONLY_JPA_USER`, `REST_TALKS_ONLY_TO_APPLICATION`, `OUTBOUND_DOES_NOT_DEPEND_ON_APPLICATION`, `HANDLERS_DO_NOT_RETURN_AGGREGATES`, `ONE_PRODUCER_PER_CONTEXT` |
-| Domain | `DOMAIN_REPOSITORIES_ARE_INTERFACES`, `DOMAIN_PACKAGES_ARE_NULL_MARKED`, `AGGREGATE_ROOTS_HAVE_PRIVATE_STATE`, `AGGREGATE_ROOTS_HAVE_NO_PUBLIC_SETTERS`, `DOMAIN_STATE_IS_PRIVATE`, `ONLY_AGGREGATES_REASSIGN_DOMAIN_STATE` |
+| Domain | `DOMAIN_REPOSITORIES_ARE_INTERFACES`, `DOMAIN_PACKAGES_ARE_NULL_MARKED`, `AGGREGATE_ROOTS_HAVE_PRIVATE_STATE`, `AGGREGATE_ROOTS_HAVE_NO_PUBLIC_SETTERS`, `DOMAIN_STATE_IS_PRIVATE`, `ONLY_AGGREGATES_REASSIGN_DOMAIN_STATE`, `DOMAIN_TYPES_ARE_CONSTRUCTED_BY_THEIR_DOMAIN` |
 | Boundaries | `TRANSFER_OBJECT_PACKAGES_CONTAIN_ONLY_TRANSFER_OBJECTS`, `TRANSFER_OBJECTS_BELONG_TO_DTO_PACKAGES`, `JPA_ENTITIES_FOLLOW_ENTITY_CONVENTIONS`, `ENTITY_PACKAGES_CONTAIN_ONLY_ENTITIES`, `REST_TRANSFER_OBJECTS_DO_NOT_LEAK_INNER_LAYERS`, `ENTITY_REPRESENTATIONS_DO_NOT_LEAK_INNER_LAYERS` |
 | MapStruct | `MAPPERS_USE_MAPSTRUCT`, `MAPSTRUCT_MAPPERS_HAVE_A_MAPPER_PACKAGE`, `MAPSTRUCT_MAPPERS_ARE_INTERFACES`, `MAPSTRUCT_MAPPERS_HAVE_GENERATED_IMPLEMENTATIONS`, `MAPSTRUCT_MAPPER_METHODS_ARE_ABSTRACT`, `BOUNDARY_CARRIERS_ARE_ONLY_CONSTRUCTED_BY_MAPSTRUCT`, `BOUNDARY_CARRIER_SETTERS_ARE_ONLY_CALLED_BY_MAPSTRUCT`, `BOUNDARY_CARRIER_STATE_IS_PRIVATE` |
 
@@ -207,6 +207,29 @@ and JPA ownership rules exempt it. REST may additionally depend on `jakarta.ente
 The construction policy (`CONSTRUCTION_POLICY`) requires exactly one constructor and at most one
 construction owner per class. Records and enums are carriers constructed where they are consumed and are
 exempt. The factory-per-consumer, domain-product and per-domain-producer checks of `0.4.0` are retired.
+
+`DOMAIN_TYPES_ARE_CONSTRUCTED_BY_THEIR_DOMAIN` (since `1.1.0`) keeps the shape of an aggregate inside its
+context's domain: a constructor call, a constructor reference or a `builder()` call on a class of
+`<context>.domain..` is accepted only from that same domain. Records and enums are carriers and exempt, the
+composition root may call the constructors of the domain's services, policies and factories but never a
+builder, and a generated MapStruct implementation may rebuild a product through its builder. An outer layer that needs a domain product calls a factory the domain
+publishes.
+
+#### Adopting the suite with inherited findings
+
+```xml
+<execution>
+    <id>bytecode</id><goals><goal>check-bytecode</goal></goals>
+    <configuration><baselineFile>${project.basedir}/architecture-baseline.txt</baselineFile></configuration>
+</execution>
+```
+
+With a `baselineFile` every rule still runs over every class. A finding that is not frozen fails the build,
+and so does a frozen entry that no longer occurs, so the file only shrinks. Findings are keyed by rule identity
+and detail without source line numbers; rule-evaluation errors (a rule that selects no class) are frozen the
+same way, while an incomplete or corrupt inventory always fails. `-Darchitecture.baseline.update=true` creates
+a missing file from the current findings and removes resolved entries from an existing one; it never adds an
+entry to an existing file. The report starts with `FROZEN` and lists `INTRODUCED` and `RESOLVED` lines.
 
 ### `check-iosp`
 

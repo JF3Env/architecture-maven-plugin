@@ -488,6 +488,81 @@ class ContextFirstRulesTest {
   }
 
   @Test
+  void domainTypesAreConstructedByTheirDomainOrPublishedToTheCompositionRoot() throws IOException {
+    var factory = BASE + ".orders.domain.OrderFactory";
+    var line = BASE + ".orders.domain.OrderLine";
+    var producer = BASE + ".orders.infrastructure.wiring.OrdersProducer";
+    var order =
+        "public class Order { Order() {} public static Builder builder() { return new Builder(); }"
+            + " public static class Builder { public Order build() { return new Order(); } } }";
+    var valid =
+        fixture(
+            Map.of(
+                ORDER,
+                order,
+                line,
+                "public record OrderLine(long quantity) {}",
+                factory,
+                "public class OrderFactory { public Order create() { return Order.builder().build(); } }",
+                PLACE_ORDER,
+                "public class PlaceOrderHandler { public Object place("
+                    + factory
+                    + " orders) { orders.create(); return new "
+                    + line
+                    + "(1); } }",
+                producer,
+                "public class OrdersProducer { public "
+                    + factory
+                    + " orders() { return new "
+                    + factory
+                    + "(); } }"));
+    accepts(rule(valid, "DOMAIN_TYPES_ARE_CONSTRUCTED_BY_THEIR_DOMAIN"), valid);
+    var policy = BASE + ".orders.domain.OrderPolicy";
+    var invoice = BASE + ".billing.domain.InvoicePolicy";
+    var invalid =
+        fixture(
+            Map.of(
+                ORDER,
+                order.replace(" Order() {}", " public Order() {}"),
+                policy,
+                "public class OrderPolicy {}",
+                factory,
+                "public class OrderFactory {}",
+                PLACE_ORDER,
+                "public class PlaceOrderHandler {"
+                    + " public Object built() { return "
+                    + ORDER
+                    + ".builder().build(); }"
+                    + " public java.util.function.Supplier<"
+                    + ORDER
+                    + "> referenced() { return "
+                    + ORDER
+                    + "::new; }"
+                    + " public Object assembled() { return new "
+                    + factory
+                    + "(); } }",
+                producer,
+                "public class OrdersProducer { public Object policy() { return new "
+                    + policy
+                    + "(); } public Object order() { return "
+                    + ORDER
+                    + ".builder().build(); } }",
+                invoice,
+                "public class InvoicePolicy { public Object order() { return new "
+                    + policy
+                    + "(); } }"));
+    rejects(
+        rule(invalid, "DOMAIN_TYPES_ARE_CONSTRUCTED_BY_THEIR_DOMAIN"),
+        invalid,
+        "PlaceOrderHandler.built()",
+        "PlaceOrderHandler.referenced()",
+        "PlaceOrderHandler.assembled()",
+        "OrdersProducer.order()",
+        "InvoicePolicy.order()",
+        "call a factory published by orders.domain");
+  }
+
+  @Test
   void transferObjectsAndTheirPackagesCoincide() throws IOException {
     var dto = BASE + ".orders.infrastructure.inbound.rest.dto.OrderDto";
     var valid = fixture(Map.of(dto, "public record OrderDto(long id) {}"));
