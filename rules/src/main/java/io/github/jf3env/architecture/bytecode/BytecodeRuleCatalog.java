@@ -181,6 +181,7 @@ public final class BytecodeRuleCatalog {
                 "jakarta.ws.rs..",
                 "jakarta.inject..",
                 "jakarta.enterprise..",
+                "com.fasterxml.jackson.annotation..",
                 rest,
                 application,
                 api,

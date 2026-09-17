@@ -202,7 +202,9 @@ The 35 identities, each with a compiled counterexample in the library's tests:
 Two deliberate readings of the plan's suite: the platform belongs to no context layer, so `api` may use
 `<platform>.domain` (integration events implement the platform marker) and the layer rule ignores
 platform dependencies; and `<context>.infrastructure.wiring` is the composition root, so the transaction
-and JPA ownership rules exempt it. REST may additionally depend on `jakarta.enterprise..`.
+and JPA ownership rules exempt it. REST may additionally depend on `jakarta.enterprise..` and, since `1.1.0`, on
+`com.fasterxml.jackson.annotation..`: naming a wire property is what a transfer object is for, while the
+Jackson runtime (`databind`, `core`) stays outside.
 
 The construction policy (`CONSTRUCTION_POLICY`) requires exactly one constructor and at most one
 construction owner per class. Records and enums are carriers constructed where they are consumed and are

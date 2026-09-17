@@ -305,31 +305,48 @@ class ContextFirstRulesTest {
     var valid =
         fixture(
             Map.of(
-                ORDER_REF, "public record OrderRef(long id) {}",
-                PLACE_ORDER, "public class PlaceOrderHandler {}",
-                dto, "public record OrderDto(long id) {}",
+                ORDER_REF,
+                "public record OrderRef(long id) {}",
+                PLACE_ORDER,
+                "public class PlaceOrderHandler {}",
+                "com.fasterxml.jackson.annotation.JsonProperty",
+                "@java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)"
+                    + " public @interface JsonProperty { String value(); }",
+                dto,
+                "public record OrderDto("
+                    + "@com.fasterxml.jackson.annotation.JsonProperty(\"order_id\") long id) {}",
                 resource,
-                    "public class OrderResource { "
-                        + PLACE_ORDER
-                        + " handler; "
-                        + ORDER_REF
-                        + " ref; "
-                        + dto
-                        + " dto; java.util.UUID id; }"));
+                "public class OrderResource { "
+                    + PLACE_ORDER
+                    + " handler; "
+                    + ORDER_REF
+                    + " ref; "
+                    + dto
+                    + " dto; java.util.UUID id; }"));
     accepts(rule(valid, "REST_TALKS_ONLY_TO_APPLICATION"), valid);
     var adapter = BASE + ".orders.infrastructure.outbound.persistence.OrderAdapter";
     var invalid =
         fixture(
             Map.of(
-                ORDER, "public class Order {}",
-                adapter, "public class OrderAdapter {}",
+                ORDER,
+                "public class Order {}",
+                adapter,
+                "public class OrderAdapter {}",
+                "com.fasterxml.jackson.databind.ObjectMapper",
+                "public class ObjectMapper {}",
                 resource,
-                    "public class OrderResource { "
-                        + ORDER
-                        + " order; "
-                        + adapter
-                        + " adapter; }"));
-    rejects(rule(invalid, "REST_TALKS_ONLY_TO_APPLICATION"), invalid, resource, ORDER, adapter);
+                "public class OrderResource { "
+                    + ORDER
+                    + " order; "
+                    + adapter
+                    + " adapter; com.fasterxml.jackson.databind.ObjectMapper json; }"));
+    rejects(
+        rule(invalid, "REST_TALKS_ONLY_TO_APPLICATION"),
+        invalid,
+        resource,
+        ORDER,
+        adapter,
+        "com.fasterxml.jackson.databind.ObjectMapper");
   }
 
   @Test
