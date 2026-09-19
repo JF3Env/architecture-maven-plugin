@@ -305,31 +305,48 @@ class ContextFirstRulesTest {
     var valid =
         fixture(
             Map.of(
-                ORDER_REF, "public record OrderRef(long id) {}",
-                PLACE_ORDER, "public class PlaceOrderHandler {}",
-                dto, "public record OrderDto(long id) {}",
+                ORDER_REF,
+                "public record OrderRef(long id) {}",
+                PLACE_ORDER,
+                "public class PlaceOrderHandler {}",
+                "com.fasterxml.jackson.annotation.JsonProperty",
+                "@java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)"
+                    + " public @interface JsonProperty { String value(); }",
+                dto,
+                "public record OrderDto("
+                    + "@com.fasterxml.jackson.annotation.JsonProperty(\"order_id\") long id) {}",
                 resource,
-                    "public class OrderResource { "
-                        + PLACE_ORDER
-                        + " handler; "
-                        + ORDER_REF
-                        + " ref; "
-                        + dto
-                        + " dto; java.util.UUID id; }"));
+                "public class OrderResource { "
+                    + PLACE_ORDER
+                    + " handler; "
+                    + ORDER_REF
+                    + " ref; "
+                    + dto
+                    + " dto; java.util.UUID id; }"));
     accepts(rule(valid, "REST_TALKS_ONLY_TO_APPLICATION"), valid);
     var adapter = BASE + ".orders.infrastructure.outbound.persistence.OrderAdapter";
     var invalid =
         fixture(
             Map.of(
-                ORDER, "public class Order {}",
-                adapter, "public class OrderAdapter {}",
+                ORDER,
+                "public class Order {}",
+                adapter,
+                "public class OrderAdapter {}",
+                "com.fasterxml.jackson.databind.ObjectMapper",
+                "public class ObjectMapper {}",
                 resource,
-                    "public class OrderResource { "
-                        + ORDER
-                        + " order; "
-                        + adapter
-                        + " adapter; }"));
-    rejects(rule(invalid, "REST_TALKS_ONLY_TO_APPLICATION"), invalid, resource, ORDER, adapter);
+                "public class OrderResource { "
+                    + ORDER
+                    + " order; "
+                    + adapter
+                    + " adapter; com.fasterxml.jackson.databind.ObjectMapper json; }"));
+    rejects(
+        rule(invalid, "REST_TALKS_ONLY_TO_APPLICATION"),
+        invalid,
+        resource,
+        ORDER,
+        adapter,
+        "com.fasterxml.jackson.databind.ObjectMapper");
   }
 
   @Test
@@ -485,6 +502,89 @@ class ContextFirstRulesTest {
     var invalid = fixture(Map.of(policy, "public class OrderPolicy { public long limit; }"));
     rejects(rule(invalid, "DOMAIN_STATE_IS_PRIVATE"), invalid, policy + ".limit");
     rejects(rule(invalid, "ONLY_AGGREGATES_REASSIGN_DOMAIN_STATE"), invalid, policy + ".limit");
+  }
+
+  @Test
+  void domainTypesAreConstructedByTheirDomainOrPublishedToTheCompositionRoot() throws IOException {
+    var factory = BASE + ".orders.domain.OrderFactory";
+    var line = BASE + ".orders.domain.OrderLine";
+    var producer = BASE + ".orders.infrastructure.wiring.OrdersProducer";
+    var order =
+        "public class Order { Order() {} public static Builder builder() { return new Builder(); }"
+            + " public static class Builder { public Order build() { return new Order(); } } }";
+    var valid =
+        fixture(
+            Map.of(
+                ORDER,
+                order,
+                line,
+                "public record OrderLine(long quantity) {}",
+                BASE + ".orders.domain.command.PlaceOrderCommand",
+                "public class PlaceOrderCommand {}",
+                factory,
+                "public class OrderFactory { public Order create() { return Order.builder().build(); } }",
+                PLACE_ORDER,
+                "public class PlaceOrderHandler { public Object place("
+                    + factory
+                    + " orders) { orders.create(); return new "
+                    + line
+                    + "(1); } public Object command() { return new "
+                    + BASE
+                    + ".orders.domain.command.PlaceOrderCommand(); } }",
+                producer,
+                "public class OrdersProducer { public "
+                    + factory
+                    + " orders() { return new "
+                    + factory
+                    + "(); } }"));
+    accepts(rule(valid, "DOMAIN_TYPES_ARE_CONSTRUCTED_BY_THEIR_DOMAIN"), valid);
+    var policy = BASE + ".orders.domain.OrderPolicy";
+    var invoice = BASE + ".billing.domain.InvoicePolicy";
+    var invalid =
+        fixture(
+            Map.of(
+                ORDER,
+                order.replace(" Order() {}", " public Order() {}"),
+                policy,
+                "public class OrderPolicy {}",
+                factory,
+                "public class OrderFactory {}",
+                PLACE_ORDER,
+                "public class PlaceOrderHandler {"
+                    + " public Object built() { return "
+                    + ORDER
+                    + ".builder().build(); }"
+                    + " public java.util.function.Supplier<"
+                    + ORDER
+                    + "> referenced() { return "
+                    + ORDER
+                    + "::new; }"
+                    + " public Object assembled() { return new "
+                    + factory
+                    + "(); } }",
+                producer,
+                "public class OrdersProducer { public Object policy() { return new "
+                    + policy
+                    + "(); } public Object order() { return "
+                    + ORDER
+                    + ".builder().build(); } }",
+                BASE + ".orders.infrastructure.outbound.persistence.OrderAdapter",
+                "public class OrderAdapter { public Object order() { return "
+                    + ORDER
+                    + ".builder().build(); } }",
+                invoice,
+                "public class InvoicePolicy { public Object order() { return new "
+                    + policy
+                    + "(); } }"));
+    rejects(
+        rule(invalid, "DOMAIN_TYPES_ARE_CONSTRUCTED_BY_THEIR_DOMAIN"),
+        invalid,
+        "PlaceOrderHandler.built()",
+        "PlaceOrderHandler.referenced()",
+        "PlaceOrderHandler.assembled()",
+        "OrderAdapter.order()",
+        "InvoicePolicy.order()",
+        "call a factory published by orders.domain");
   }
 
   @Test
