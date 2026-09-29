@@ -23,6 +23,7 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import com.tngtech.archunit.lang.conditions.ArchConditions;
 import io.github.jf3env.architecture.ContextShape;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -132,14 +133,12 @@ public final class BytecodeRuleCatalog {
     rules.add(
         "INTEGRATION_EVENTS_ARE_PUBLIC_RECORDS",
         classes()
-            .that()
-            .implement(policy.integrationEventType())
             .should()
-            .beRecords()
-            .andShould()
-            .bePublic()
-            .andShould()
-            .resideInAPackage(base + ".*.api.events.."));
+            .notImplement(policy.integrationEventType())
+            .orShould(
+                ArchConditions.beRecords()
+                    .and(ArchConditions.bePublic())
+                    .and(ArchConditions.resideInAPackage(base + ".*.api.events.."))));
     rules.add(
         "PLATFORM_DEPENDS_ON_NO_CONTEXT",
         noClasses()
@@ -154,13 +153,11 @@ public final class BytecodeRuleCatalog {
     rules.add(
         "TRANSACTIONS_BELONG_TO_APPLICATION",
         classes()
-            .that(dependOn(assignableTo(policy.unitOfWorkType()).or(name(TRANSACTIONAL))))
-            .and()
-            .resideOutsideOfPackage(platform)
-            .and()
-            .resideOutsideOfPackage(wiring)
             .should()
-            .resideInAPackage(application));
+            .onlyDependOnClassesThat(
+                not(assignableTo(policy.unitOfWorkType()).or(name(TRANSACTIONAL))))
+            .orShould()
+            .resideInAnyPackage(platform, wiring, application));
     rules.add(
         "PERSISTENCE_IS_THE_ONLY_JPA_USER",
         classes()
