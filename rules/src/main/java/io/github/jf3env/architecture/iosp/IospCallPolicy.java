@@ -172,12 +172,19 @@ final class IospCallPolicy {
   private final VerifiedConstruction construction;
   private final CompiledInvocations invocations;
   private final VerifiedExceptionFactories exceptionFactories;
+  private final Set<String> plumbingCalls;
 
-  IospCallPolicy(ClassLoader loader) {
+  /**
+   * {@code plumbingCalls} are consumer-declared {@code Owner#method} entries. They only relax calls
+   * this policy would otherwise count as implementation; a call to application code stays
+   * delegation whatever the configuration says.
+   */
+  IospCallPolicy(ClassLoader loader, Set<String> plumbingCalls) {
     this.accessors = new VerifiedAccessors(loader);
     this.construction = new VerifiedConstruction(loader);
     this.invocations = new CompiledInvocations(loader);
     this.exceptionFactories = new VerifiedExceptionFactories(loader);
+    this.plumbingCalls = Set.copyOf(plumbingCalls);
   }
 
   private static boolean isPrimitive(String owner, String name) {
@@ -250,7 +257,7 @@ final class IospCallPolicy {
       return Kind.PLUMBING;
     }
     if (isPrimitive(owner, name)) {
-      return Kind.IMPLEMENTATION;
+      return this.plumbingCalls.contains(owner + "#" + name) ? Kind.PLUMBING : Kind.IMPLEMENTATION;
     }
     return Kind.DELEGATION;
   }

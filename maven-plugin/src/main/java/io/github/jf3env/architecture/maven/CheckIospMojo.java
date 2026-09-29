@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -35,6 +37,12 @@ public final class CheckIospMojo extends AbstractMojo {
   private String basePackage;
 
   @Parameter private List<File> generatedSourceRoots;
+
+  /**
+   * JDK calls, as {@code Owner#method} with the owner's binary name, that connect values rather
+   * than implement a rule. They only relax calls the analysis would count as implementation.
+   */
+  @Parameter private List<String> plumbingCalls;
 
   @Parameter(
       defaultValue = "${project.build.directory}/architecture/iosp-report.txt",
@@ -90,7 +98,12 @@ public final class CheckIospMojo extends AbstractMojo {
         Path.of(project.getBuild().getSourceDirectory()),
         generated,
         Path.of(project.getBuild().getOutputDirectory()),
-        project.getCompileClasspathElements().stream().map(Path::of).toList());
+        project.getCompileClasspathElements().stream().map(Path::of).toList(),
+        plumbingCalls());
+  }
+
+  private Set<String> plumbingCalls() {
+    return plumbingCalls == null ? Set.of() : new TreeSet<>(plumbingCalls);
   }
 
   private String render(SourceReport report) {
@@ -103,6 +116,8 @@ public final class CheckIospMojo extends AbstractMojo {
         + report.sourceFiles()
         + "\nrules="
         + report.rules()
+        + "\nplumbingCalls="
+        + plumbingCalls()
         + "\n"
         + String.join("\n", report.violations())
         + "\n"

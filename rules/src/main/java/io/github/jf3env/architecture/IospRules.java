@@ -32,7 +32,8 @@ public final class IospRules {
             request.classesDirectory(),
             request.generatedRoots(),
             request.basePackage(),
-            request.classpath());
+            request.classpath(),
+            request.plumbingCalls());
     var violations = new TreeSet<String>();
     report.getViolations().forEach(violation -> violations.add(diagnostic(violation)));
     report

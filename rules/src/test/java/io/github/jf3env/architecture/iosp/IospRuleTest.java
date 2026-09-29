@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Set;
 import net.sourceforge.pmd.reporting.Report;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -266,10 +267,41 @@ class IospRuleTest {
     assertFalse(description.contains("null"), description);
   }
 
+  @Test
+  void configuredPlumbingCallsStopCountingAsImplementation() {
+    var member = "boolean run() { return java.util.Objects.nonNull(repo.values()); }";
+    assertTrue(mixed(this.analyze(member)), "Objects.nonNull is implementation by default");
+    assertFalse(mixed(this.analyze(member, Set.of("java.util.Objects#nonNull"))));
+    assertTrue(
+        mixed(this.analyze(member, Set.of("java.util.Objects#isNull"))),
+        "only the configured method is relaxed");
+  }
+
+  @Test
+  void configuredPlumbingCallsNeverRelaxApplicationDelegation() {
+    var member = "int run() { return repo.load() + 1; }";
+    assertTrue(
+        mixed(this.analyze(member, Set.of("com.ai.label.probe.domain.Repository#load"))),
+        "an application call stays delegation whatever the configuration says");
+  }
+
+  private static boolean mixed(Report report) {
+    return report.getViolations().stream()
+        .anyMatch(violation -> violation.getDescription().contains("IOSP_MIXED"));
+  }
+
   private Report analyze(String member) {
+    return this.analyze(member, Set.of());
+  }
+
+  private Report analyze(String member, Set<String> plumbingCalls) {
     var report =
         IospAnalysis.analyzeSource(
-            PREFIX + member + "}", this.getClass().getClassLoader(), "com.ai.label");
+            PREFIX + member + "}",
+            this.getClass().getClassLoader(),
+            "com.ai.label",
+            Set.of(),
+            plumbingCalls);
     assertTrue(report.getProcessingErrors().isEmpty(), report.getProcessingErrors().toString());
     assertTrue(
         report.getConfigurationErrors().isEmpty(), report.getConfigurationErrors().toString());

@@ -66,6 +66,7 @@ public final class IospRule extends AbstractJavaRule {
   private final ClassLoader loader;
   private final AtomicInteger checkedMethods;
   private final Set<String> applicationTypes;
+  private final Set<String> plumbingCalls;
   private final String basePackage;
   private final ContextShape shape;
 
@@ -78,14 +79,31 @@ public final class IospRule extends AbstractJavaRule {
   }
 
   public IospRule(ClassLoader loader, String basePackage, Set<String> applicationTypes) {
-    this(loader, basePackage, new AtomicInteger(), Set.copyOf(applicationTypes));
+    this(loader, basePackage, applicationTypes, Set.of());
+  }
+
+  /**
+   * {@code plumbingCalls} are the consumer's {@code Owner#method} exemptions from implementation.
+   */
+  public IospRule(
+      ClassLoader loader,
+      String basePackage,
+      Set<String> applicationTypes,
+      Set<String> plumbingCalls) {
+    this(
+        loader,
+        basePackage,
+        new AtomicInteger(),
+        Set.copyOf(applicationTypes),
+        Set.copyOf(plumbingCalls));
   }
 
   private IospRule(
       ClassLoader loader,
       String basePackage,
       AtomicInteger checkedMethods,
-      Set<String> applicationTypes) {
+      Set<String> applicationTypes,
+      Set<String> plumbingCalls) {
     if (basePackage == null || basePackage.isBlank()) {
       throw new IllegalArgumentException("A consumer basePackage is required");
     }
@@ -93,13 +111,14 @@ public final class IospRule extends AbstractJavaRule {
     setLanguage(JavaLanguageModule.getInstance());
     setMessage("{0}");
     setPriority(RulePriority.HIGH);
-    this.calls = new IospCallPolicy(loader);
+    this.calls = new IospCallPolicy(loader, plumbingCalls);
     this.invocations = new CompiledInvocations(loader);
     this.loader = loader;
     this.basePackage = basePackage;
     this.shape = ContextShape.of(basePackage);
     this.checkedMethods = checkedMethods;
     this.applicationTypes = applicationTypes;
+    this.plumbingCalls = plumbingCalls;
   }
 
   private Facts constructorFacts(Node constructor) {
@@ -331,7 +350,12 @@ public final class IospRule extends AbstractJavaRule {
 
   @Override
   public IospRule deepCopy() {
-    return new IospRule(this.loader, this.basePackage, this.checkedMethods, this.applicationTypes);
+    return new IospRule(
+        this.loader,
+        this.basePackage,
+        this.checkedMethods,
+        this.applicationTypes,
+        this.plumbingCalls);
   }
 
   public int checkedMethods() {
