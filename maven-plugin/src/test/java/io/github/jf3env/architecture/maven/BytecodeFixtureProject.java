@@ -24,6 +24,18 @@ public final class BytecodeFixtureProject {
         Files.readString(original.resolve("pom.xml")).replace("@project.version@", version));
     var sources = target.resolve("src/main/java/consumer/example");
     switch (scenario) {
+      case "no-optional-capabilities" -> {
+        Files.delete(sources.resolve("orders/api/events/OrderPlaced.java"));
+        var handler = sources.resolve("orders/application/PlaceOrderHandler.java");
+        replace(handler, "import consumer.example.platform.application.UnitOfWork;\n", "");
+        replace(handler, "  private final UnitOfWork unitOfWork;\n", "");
+        replace(handler, "    unitOfWork.begin();\n", "");
+        replace(handler, "    unitOfWork.commit();\n", "");
+        var producer = sources.resolve("orders/infrastructure/wiring/OrdersProducer.java");
+        replace(producer, "import consumer.example.platform.application.UnitOfWork;\n", "");
+        replace(producer, "UnitOfWork unitOfWork, ", "");
+        replace(producer, "new PlaceOrderHandler(unitOfWork, ", "new PlaceOrderHandler(");
+      }
       case "owners" -> {
         var producer = sources.resolve("orders/infrastructure/wiring/OrdersProducer.java");
         replace(

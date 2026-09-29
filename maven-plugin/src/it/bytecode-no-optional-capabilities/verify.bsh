@@ -1,0 +1,6 @@
+new io.github.jf3env.architecture.maven.BytecodeFixtureProject().verify(basedir.toPath(), "PASSED",
+    java.util.List.of("INTEGRATION_EVENTS_ARE_PUBLIC_RECORDS", "TRANSACTIONS_BELONG_TO_APPLICATION", "constructionPolicy=EXECUTED"));
+if (new File(basedir, "target/classes/consumer/example/orders/api/events/OrderPlaced.class").exists()) {
+    throw new IllegalStateException("The removed event must not be in the consumer inventory");
+}
+return true;

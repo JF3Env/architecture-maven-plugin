@@ -255,6 +255,50 @@ class ContextFirstRulesTest {
   }
 
   @Test
+  void eventAndTransactionCapabilitiesMayBeAbsentFromANonemptyInventory() throws IOException {
+    var types = fixture(Map.of(ORDER, "class Order {}"));
+    accepts(rule(types, "INTEGRATION_EVENTS_ARE_PUBLIC_RECORDS"), types);
+    accepts(rule(types, "TRANSACTIONS_BELONG_TO_APPLICATION"), types);
+  }
+
+  @ParameterizedTest(name = "event constraint: {0}, {1}")
+  @CsvSource({
+    "orders.api.events, public class OrderPlaced",
+    "orders.api.events, record OrderPlaced()",
+    "orders.domain, public record OrderPlaced()"
+  })
+  void everyEventConstraintStillRejectsItsOwnViolation(String home, String declaration)
+      throws IOException {
+    var event = BASE + "." + home + ".OrderPlaced";
+    var types = fixture(Map.of(event, declaration + " implements " + INTEGRATION_EVENT + " {}"));
+    rejects(rule(types, "INTEGRATION_EVENTS_ARE_PUBLIC_RECORDS"), types, event);
+  }
+
+  @Test
+  void onlyExemptTransactionConsumersDoNotRequireAnApplicationConsumer() throws IOException {
+    var types =
+        fixture(
+            Map.of(
+                PLATFORM + ".infrastructure.DirectUnitOfWork",
+                "public class DirectUnitOfWork implements "
+                    + UNIT_OF_WORK
+                    + " { public void begin() {} public void commit() {} }",
+                BASE + ".orders.infrastructure.wiring.OrdersProducer",
+                "public class OrdersProducer { " + UNIT_OF_WORK + " unitOfWork; }"));
+    accepts(rule(types, "TRANSACTIONS_BELONG_TO_APPLICATION"), types);
+  }
+
+  @Test
+  void transactionAnnotationsAreAllowedInApplication() throws IOException {
+    var types =
+        fixture(
+            Map.of(
+                PLACE_ORDER,
+                "public class PlaceOrderHandler { @jakarta.transaction.Transactional public void place() {} }"));
+    accepts(rule(types, "TRANSACTIONS_BELONG_TO_APPLICATION"), types);
+  }
+
+  @Test
   void transactionsBelongToTheApplicationLayer() throws IOException {
     var valid =
         fixture(

@@ -188,6 +188,14 @@ may live in any package. Every required identity must select at least one class:
 an analysis error, never an approval. Resolution cannot be disabled or replaced through ArchUnit
 configuration, and the analyzer preserves its caller's context classloader and configuration.
 
+Since `1.2.1-SNAPSHOT`, `INTEGRATION_EVENTS_ARE_PUBLIC_RECORDS` and
+`TRANSACTIONS_BELONG_TO_APPLICATION` select the complete application class inventory and express
+conditional constraints: a class that implements the integration-event marker must be a public
+record in `api.events`, and a class using the transaction contract must be in application,
+platform or wiring. An application need not declare events or transaction consumers. These rules
+still execute when those capabilities are absent; empty inventories, unresolved inputs and malformed
+implementations still fail. No global or per-rule empty-selection override is used.
+
 The 35 identities, each with a compiled counterexample in the library's tests:
 
 | Group | Identities |
