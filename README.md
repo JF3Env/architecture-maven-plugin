@@ -246,6 +246,23 @@ consumer compile classpath, so a caught library exception is resolvable. Its own
 constructors must only wire collaborators are the `Service` and `Handler` types of a context's domain and
 application layers, and the composition root that may allocate beans is `<context>.infrastructure.wiring`.
 
+Since `1.2.0` a consumer may declare JDK calls that connect values rather than implement a rule, so they
+stop counting as implementation inside a coordinating scope:
+
+```xml
+<configuration>
+  <basePackage>com.example</basePackage>
+  <plumbingCalls>
+    <plumbingCall>java.util.Objects#nonNull</plumbingCall>
+  </plumbingCalls>
+</configuration>
+```
+
+Each entry is `Owner#method` with the owner's binary name (`java.util.Map$Entry#getKey`) and covers every
+overload of that method; a malformed entry fails the analysis. An entry only relaxes a call the analysis
+would otherwise count as implementation: a call to application code stays delegation whatever the
+configuration says. `iosp-report.txt` lists the configured entries under `plumbingCalls=`.
+
 ## Publishing
 
 CI publishes snapshots to GitHub Packages after verification. Consumers of this private repository

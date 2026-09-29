@@ -46,6 +46,20 @@ public final class IospAnalysis {
       String basePackage,
       List<Path> classpath)
       throws IOException {
+    return analyze(sourceRoot, classes, generatedRoots, basePackage, classpath, Set.of());
+  }
+
+  /**
+   * {@code plumbingCalls} are the consumer's {@code Owner#method} exemptions from implementation.
+   */
+  public static Report analyze(
+      Path sourceRoot,
+      Path classes,
+      List<Path> generatedRoots,
+      String basePackage,
+      List<Path> classpath,
+      Set<String> plumbingCalls)
+      throws IOException {
     if (!Files.isDirectory(sourceRoot) || !Files.isDirectory(classes)) {
       throw new IllegalStateException("IOSP: source and compiled-class directories are required");
     }
@@ -59,7 +73,11 @@ public final class IospAnalysis {
     configuration.prependAuxClasspath(String.join(File.pathSeparator, entries));
     try (var analysis = PmdAnalysis.create(configuration)) {
       var rule =
-          new IospRule(configuration.getClassLoader(), basePackage, inventory.applicationTypes());
+          new IospRule(
+              configuration.getClassLoader(),
+              basePackage,
+              inventory.applicationTypes(),
+              plumbingCalls);
       analysis.addRuleSet(RuleSet.forSingleRule(rule));
       sources.forEach(path -> analysis.files().addFile(path));
       var report = analysis.performAnalysisAndCollectReport();
@@ -77,11 +95,21 @@ public final class IospAnalysis {
 
   public static Report analyzeSource(
       String source, ClassLoader loader, String basePackage, Set<String> applicationTypes) {
+    return analyzeSource(source, loader, basePackage, applicationTypes, Set.of());
+  }
+
+  public static Report analyzeSource(
+      String source,
+      ClassLoader loader,
+      String basePackage,
+      Set<String> applicationTypes,
+      Set<String> plumbingCalls) {
     var configuration = configuration();
     configuration.setClassLoader(loader);
     try (var analysis = PmdAnalysis.create(configuration)) {
       analysis.addRuleSet(
-          RuleSet.forSingleRule(new IospRule(loader, basePackage, applicationTypes)));
+          RuleSet.forSingleRule(
+              new IospRule(loader, basePackage, applicationTypes, plumbingCalls)));
       analysis.files().addSourceFile(FileId.fromPathLikeString("Fixture.java"), source);
       return analysis.performAnalysisAndCollectReport();
     }
